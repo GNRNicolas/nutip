@@ -11,6 +11,10 @@ and keeps an index an AI agent can read in one go.
 No account, no permission to grant, no database you cannot open, no AI
 inside. The folder is the product.
 
+<p align="center">
+  <img src="docs/capture.png" width="760" alt="The Nutip palette over a browser: the page being saved, a why field, the tag list, and Save">
+</p>
+
 ## Install
 
 ```sh
@@ -45,6 +49,10 @@ Press the hotkey with an empty clipboard, or click **Browse**, and the
 palette opens in **browse** mode: type to search everything you saved (title, note, tags, text — `#tag`
 restricts to a tag), **↩** opens the file in your editor, **⌘↩** opens the
 original link, **⌘E** edits tags and note, **⌘⌫** deletes.
+
+<p align="center">
+  <img src="docs/browse.png" width="760" alt="Browse mode: a #reading filter chip in the search field and the list of clips below">
+</p>
 
 ### The folder
 
@@ -102,6 +110,15 @@ nutip add https://example.com -t reading -w "the pricing table"
 nutip extract https://example.com   # what a page becomes, on stdout
 nutip reindex                       # rebuild INDEX.md, tags/ and the search index
 ```
+
+### Settings
+
+The folder, your tags, the hotkey and whether Nutip starts at login. That is
+the whole of it.
+
+<p align="center">
+  <img src="docs/settings.png" width="620" alt="Nutip settings: folder, tags, how it works, shortcut, open at login">
+</p>
 
 ## Permissions
 
