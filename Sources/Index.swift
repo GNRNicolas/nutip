@@ -181,20 +181,27 @@ enum Index {
             Facet(kind: .kind, value: "link", label: "links"),
             Facet(kind: .kind, value: "text", label: "text"),
         ]
-        for (domain, count) in domains() {
+        // A domain saved once is not a filter, it is that one clip: offering
+        // every domain would make the list grow with the folder and be mostly
+        // noise. Only the ones that have become a habit are offered — but
+        // typing is explicit, so a typed @partial searches all of them.
+        let needle = partial.tagKey
+        for (domain, count) in domains(minimum: needle.isEmpty ? Index.domainFloor : 1) {
             out.append(Facet(kind: .domain, value: domain, label: "\(domain) (\(count))"))
         }
-        let needle = partial.tagKey
         return needle.isEmpty ? out : out.filter { $0.value.tagKey.contains(needle) || $0.label.tagKey.hasPrefix(needle) }
     }
 
+    /// How many clips a domain needs before it is offered as a filter.
+    private static let domainFloor = 3
+
     /// Domains in use, most saved first. Empty domains (text clips) excluded.
-    static func domains() -> [(String, Int)] {
+    static func domains(minimum: Int = 1) -> [(String, Int)] {
         var out: [(String, Int)] = []
         forEachRow("""
             SELECT domain, COUNT(*) FROM clips WHERE domain != ''
-            GROUP BY domain ORDER BY COUNT(*) DESC, domain ASC LIMIT 40
-            """, []) { stmt in
+            GROUP BY domain HAVING COUNT(*) >= ? ORDER BY COUNT(*) DESC, domain ASC LIMIT 12
+            """, [minimum]) { stmt in
             guard let c = sqlite3_column_text(stmt, 0) else { return }
             out.append((String(cString: c), Int(sqlite3_column_int64(stmt, 1))))
         }

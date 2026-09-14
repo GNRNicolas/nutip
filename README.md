@@ -94,14 +94,13 @@ switches to **browse** mode: type to search everything you saved — title,
 note, tags, keywords and page text. Each result shows the passage that
 matched, with your words in bold, so you pick without opening anything.
 
-- **`#`** filters by tag, **`@`** by anything else: `@today`, `@this week`,
-  `@links`, `@text`, or a domain — `@github.com`. The list of filters is read
-  from your clips, so a domain appears the day you first save it and leaves
-  with the last clip that used it. Nothing to configure, nothing to maintain.
+- **`#`** filters by tag, **`@`** by anything else: `@today`, `@week`,
+  `@month`, `@year`, `@links`, `@text`, or a domain — `@github.com`. The list
+  is read from your clips, so there is nothing to configure and nothing to
+  maintain. A domain is offered once you have saved it three times — before
+  that it is one clip, not a filter — but typing `@gith…` finds it anyway.
 - **tab** takes the highlighted suggestion, **⌫** on an empty field drops the
   last filter.
-- With an empty field, your tags are offered under it with their counts —
-  click one to start there.
 - **↩** opens the file in your editor, **⌘↩** opens the original link,
   **⌘E** edits tags and note, **⌘⌫** deletes.
 

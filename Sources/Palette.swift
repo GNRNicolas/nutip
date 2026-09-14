@@ -45,8 +45,6 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private var activeFacets: [Index.Facet] = []
     private var suggestions: [String] = []
     private var facetSuggestions: [Index.Facet] = []
-    /// Tags offered under an empty search field, in the order shown.
-    private var starters: [String] = []
     private var suggesting: Bool {
         guard case .browse = mode else { return false }
         return currentHashToken != nil || currentAtToken != nil
@@ -422,7 +420,9 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         fieldLine.isHidden = true
         field.stringValue = ""
         renderChips()   // sets the placeholder, with or without chips
-        hints.stringValue = "type to search · # then tab picks a tag"
+        // No hint line here: the placeholder in the field already says
+        // "# tag  @ filter", and saying it twice is just noise.
+        hints.stringValue = ""
         var specs: [(String, String, Selector, Bool)] = []
         if cameFrom != nil { specs.append(("Back", "esc", #selector(cancelPressed), false)) }
         specs += [("Delete", "⌘⌫", #selector(deletePressed), false), ("Edit", "⌘E", #selector(editPressed), false),
@@ -764,21 +764,6 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     /// Blue pills for the pinned tags, Slack-style.
     private func renderChips() {
         chips.views.forEach { $0.removeFromSuperview() }
-        // Browse, nothing typed, nothing pinned: the row that would be empty
-        // shows what there is to click instead. Opening a search on a blank
-        // field and a list of titles gives no idea of what the folder holds.
-        if case .browse = mode, activeTags.isEmpty, activeFacets.isEmpty, field.stringValue.trimmed.isEmpty {
-            let top = Array(Index.tagCounts().prefix(6))
-            starters = top.map(\.0)
-            for (i, entry) in top.enumerated() {
-                chips.addArrangedSubview(starter(tag: entry.0, count: entry.1, index: i))
-            }
-            chips.isHidden = starters.isEmpty
-            fieldGap.constant = starters.isEmpty ? -2 : 8
-            field.placeholderString = "Search clips…    # tag    @ filter"
-            return
-        }
-        starters = []
         for facet in activeFacets { chips.addArrangedSubview(pill(facet.label, colour: .systemGray)) }
         for tag in activeTags {
             // A coloured container with the label inset: a bare label with a
@@ -806,33 +791,6 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         chips.isHidden = noChips
         fieldGap.constant = noChips ? -2 : 8
         field.placeholderString = noChips ? "Search clips…    # tag    @ filter" : "Search in these…"
-    }
-
-    /// An offer, not a state: outlined rather than filled, so it does not
-    /// look like a filter that is already on.
-    private func starter(tag: String, count: Int, index: Int) -> NSView {
-        let button = NSButton(title: "", target: self, action: #selector(starterClicked(_:)))
-        button.tag = index
-        button.isBordered = false
-        button.wantsLayer = true
-        button.layer?.cornerRadius = 6
-        button.layer?.borderWidth = 1
-        button.layer?.borderColor = NSColor.separatorColor.cgColor
-        let text = NSMutableAttributedString(string: "#\(tag)", attributes: [
-            .font: NSFont.systemFont(ofSize: 12.5, weight: .medium), .foregroundColor: NSColor.secondaryLabelColor])
-        text.append(NSAttributedString(string: "  \(count)", attributes: [
-            .font: NSFont.systemFont(ofSize: 11.5), .foregroundColor: NSColor.tertiaryLabelColor]))
-        button.attributedTitle = text
-        button.setContentHuggingPriority(.required, for: .horizontal)
-        return button
-    }
-
-    @objc private func starterClicked(_ sender: NSButton) {
-        guard sender.tag < starters.count else { return }
-        activeTags.append(starters[sender.tag])
-        renderChips()
-        refreshBrowse()
-        focusField()
     }
 
     /// One chip. A facet is grey and a tag keeps the accent colour: the eye
@@ -943,7 +901,6 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
 
     func controlTextDidChange(_ obj: Notification) {
         guard case .browse = mode else { return }
-        renderChips()      // the starter row appears and disappears with the field
         refreshBrowse()
     }
 
