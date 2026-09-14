@@ -80,7 +80,6 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private static let clipRowHeight: CGFloat = 60
     private static let matchRowHeight: CGFloat = 78
     private static let maxRows = 8
-    private static let maxClipRows = 6
     /// Key codes of the digit row, 1 to 9, so tags answer to the physical key
     /// on every layout (AZERTY needs shift for the digit itself).
     private static let digitKeys: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
@@ -425,7 +424,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         hints.stringValue = ""
         var specs: [(String, String, Selector, Bool)] = []
         if cameFrom != nil { specs.append(("Back", "esc", #selector(cancelPressed), false)) }
-        specs += [("Delete", "⌘⌫", #selector(deletePressed), false), ("Edit", "⌘E", #selector(editPressed), false),
+        specs += [("Delete", "⌘D", #selector(deletePressed), false), ("Edit", "⌘E", #selector(editPressed), false),
                   ("Open Link", "⌘↩", #selector(openLinkPressed), false), ("Open File", "↩", #selector(openPressed), true)]
         setButtons(specs)
         results = Index.search("", tags: activeTags)
@@ -499,6 +498,15 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     /// while it is up: a list that grows or shrinks must not move the header.
     private var anchorTop: CGFloat?
 
+    /// How many clip rows fit. Browse is a list: it should use the screen it
+    /// is on, not a number picked for a laptop. Everything but the list —
+    /// header, field, chips, buttons — is about 260pt, and the panel stops at
+    /// three quarters of the usable height so it never runs off the bottom.
+    private func maxClipRows(_ rowHeight: CGFloat) -> Int {
+        let screen = (panel.screen ?? NSScreen.main ?? NSScreen.screens[0]).visibleFrame.height
+        return max(3, Int((screen * 0.75 - 260) / rowHeight))
+    }
+
     private func resize() {
         let rows = table.numberOfRows
         if suggesting {
@@ -515,7 +523,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             : (results.first?.match.isEmpty == false ? Palette.matchRowHeight : Palette.clipRowHeight)
         // Taller rows, so fewer of them: eight clip rows plus the chrome runs
         // past the bottom of a laptop screen.
-        let visible = max(1, min(rows, showsTagRows ? Palette.maxRows : Palette.maxClipRows))
+        let visible = max(1, min(rows, showsTagRows ? Palette.maxRows : maxClipRows(rowHeight)))
         scrollHeight.constant = rows == 0 ? 56 : CGFloat(visible) * rowHeight + 4
         panel.layoutIfNeeded()
         panel.setContentSize(NSSize(width: Palette.width, height: panel.contentView!.fittingSize.height))
@@ -685,7 +693,9 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             return true
         }
         if key.command, key.chars == "e", let clip = selectedClip { show(.edit(clip)); return true }
-        if key.command, key.code == Key.delete, let clip = selectedClip { // ⌘⌫
+        // ⌘D, not ⌘⌫: ⌫ is how you edit the search field, and pairing it with
+        // ⌘ put deleting a clip one slipped modifier away from erasing a word.
+        if key.command, key.chars == "d", let clip = selectedClip {
             confirmDelete(clip)
             return true
         }

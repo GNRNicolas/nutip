@@ -102,7 +102,7 @@ matched, with your words in bold, so you pick without opening anything.
 - **tab** takes the highlighted suggestion, **⌫** on an empty field drops the
   last filter.
 - **↩** opens the file in your editor, **⌘↩** opens the original link,
-  **⌘E** edits tags and note, **⌘⌫** deletes.
+  **⌘E** edits tags and note, **⌘D** deletes.
 
 <p align="center">
   <img src="docs/browse.png" width="760" alt="Browse mode: a #reading filter chip in the search field and the list of clips below">
