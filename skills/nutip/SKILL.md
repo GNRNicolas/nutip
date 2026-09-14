@@ -38,17 +38,18 @@ required.
 **When search comes back empty, do not stop there** — it matches words, and
 the question rarely uses the words the page used. Escalate, cheapest first:
 
-1. **Ask again in the other language.** This is the single biggest win and it
-   costs one command: the folder holds English pages and the questions come in
-   French, or the reverse. Measured on a 19-clip corpus: 5 French questions out
-   of 10 found their clip; the same 5 failures, re-asked in English, found it
-   every time — 10/10. Translate the subject words, not the sentence
-   (*"effets de bord react"* → `useEffect side effects react`).
+1. **Ask again in the language the page is written in.** This is the whole
+   game, and it costs one command. Measured on 258 real articles, mostly
+   English: 4 French questions out of 12 found their clip; the same 12 asked
+   in English found it **every time**, 12/12. Translate the subject words, not
+   the sentence (*"effets de bord react"* → `useEffect side effects react`).
 2. `nutip tags`, then the page of the likeliest tag (`tags/<tag>.md`) — a few
    hundred tokens, already narrowed.
-3. `nutip recent 200`, or `INDEX.md` at the root: one line per clip, with its
-   reason. Read it and make the connection yourself — that is the step no
-   full-text index can do, and it is why the folder is written this way.
+3. A whole page, read and judged by you — the step no word index can do.
+   Cheapest first, measured on a 258-clip folder: a month (`2026-03/INDEX.md`,
+   ~900 tokens), a tag (`tags/dev.md`, ~4k), then `INDEX.md` at the root
+   (~12k, and it grows with the folder). Take the narrowest one that can hold
+   the answer; the root index is a last resort, not a first move.
 
 Two searches with different words are cheaper than one wrong "I found
 nothing". Never answer that a clip does not exist without having read an

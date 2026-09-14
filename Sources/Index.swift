@@ -260,13 +260,14 @@ enum Index {
         // Nothing left to match on, yet the user did type something: answering
         // with the most recent clips would pass off a default for a result.
         guard !required.isEmpty else { return [] }
-        // One word, or none: everything that matches is equally relevant, so the
-        // useful order is the one the user thinks in — newest first. Several
-        // words: rank them, weighting the lines a human wrote (title, reason,
-        // keywords) above the page text they did not.
-        let ranked = words.count > 1
-        let order = ranked ? "bm25(fts, 0.0, 12.0, 6.0, 10.0, 8.0, 1.0), clips.captured_at DESC"
-                           : "clips.captured_at DESC"
+        // Rank on relevance as soon as there is a word to rank on, weighting the
+        // lines a human wrote (title, reason, keywords) above the page text they
+        // did not. Sorting a single word by date instead looked defensible and
+        // was not: searching "privacy" put three pages that mention it once
+        // above the one titled "Why is privacy so hard?". Date decides ties, and
+        // date alone orders a query that is only tags or filters.
+        let order = words.isEmpty ? "clips.captured_at DESC"
+                                  : "bm25(fts, 0.0, 12.0, 6.0, 10.0, 8.0, 1.0), clips.captured_at DESC"
         // The matched passage, cut by FTS5 around the words that matched, so
         // the list can show *why* a clip is in it. Body first — that is where
         // a match is least obvious — falling back to the reason.

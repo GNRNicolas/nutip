@@ -56,7 +56,7 @@ enum Keywords {
     /// folder, and they outvote the two that matter.
     static func isNoise(_ word: String) -> Bool {
         let w = word.lowercased().folding(options: .diacriticInsensitive, locale: .current)
-        return w.count < minLength || stop.contains(w)
+        return w.count < minLength || grammar.contains(w)
     }
 
     private static func words(in text: String) -> [String] {
@@ -64,7 +64,8 @@ enum Keywords {
             .components(separatedBy: CharacterSet.letters.inverted)
             .filter { word in
                 word.count >= minLength && word.count <= 24
-                    && !stop.contains(word.folding(options: .diacriticInsensitive, locale: .current))
+                    && !grammar.contains(word.folding(options: .diacriticInsensitive, locale: .current))
+                    && !boilerplate.contains(word.folding(options: .diacriticInsensitive, locale: .current))
             }
     }
 
@@ -93,10 +94,10 @@ enum Keywords {
         return out.replacingOccurrences(of: #"\bhttps?://\S+"#, with: " ", options: .regularExpression)
     }
 
-    /// French and English function words, plus the handful of words every web
-    /// page carries (cookie banners, navigation, legal footers) which would
-    /// otherwise be the most frequent words in the folder.
-    private static let stop: Set<String> = [
+    /// Words that carry no subject in any sentence. Dropped from a clip's
+    /// keywords *and* from a question: "comment parler aux utilisateurs" is
+    /// two words of subject and three of French.
+    private static let grammar: Set<String> = [
         // French
         "les", "des", "une", "est", "sont", "pour", "dans", "par", "sur", "avec", "sans", "mais",
         "que", "qui", "quoi", "dont", "cette", "ces", "son", "ses", "leur", "leurs", "nous", "vous",
@@ -119,7 +120,15 @@ enum Keywords {
         "come", "comes", "look", "looks", "find", "found", "work", "works", "let", "lets",
         "retrieved", "archived", "original", "good", "bad", "new", "old", "first", "last",
         "next", "back", "long", "short", "big", "small", "better", "best", "isbn", "doi",
-        // Web boilerplate
+    ]
+
+    /// Words every web page carries — cookie banners, navigation, legal
+    /// footers — which would otherwise be the most frequent words in the
+    /// folder. Dropped when counting a clip's keywords, and **only** then: in a
+    /// question these are ordinary subjects. Searching "privacy" returned
+    /// nothing at all while a clip titled "Why is privacy so hard?" sat in the
+    /// folder, because the one list was doing both jobs.
+    private static let boilerplate: Set<String> = [
         "cookies", "cookie", "privacy", "policy", "terms", "login", "sign", "signup", "subscribe",
         "newsletter", "menu", "home", "search", "share", "click", "read", "reading", "page",
         "site", "website", "www", "com", "http", "https", "html", "javascript", "browser",
