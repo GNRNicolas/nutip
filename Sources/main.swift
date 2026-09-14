@@ -14,10 +14,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
     private let palette = Palette()
     private let toast = Toast()
     private let preferences = Preferences()
-    private var lastClip: Clip?
+    private var lastClip: Nut?
 
-    private let clipItem = NSMenuItem(title: "Clip Now", action: #selector(clipNow), keyEquivalent: "")
-    private let undoItem = NSMenuItem(title: "Undo Last Clip", action: #selector(undoLast), keyEquivalent: "")
+    private let nutItem = NSMenuItem(title: "Save a Nut", action: #selector(nutNow), keyEquivalent: "")
+    private let undoItem = NSMenuItem(title: "Undo Last Nut", action: #selector(undoLast), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "Open at Login", action: #selector(toggleLogin), keyEquivalent: "")
     private let autoUpdateItem = NSMenuItem(title: "Check for Updates Automatically", action: #selector(toggleAutoUpdate), keyEquivalent: "")
 
@@ -100,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
     /// the one thing worth showing.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         Log.write("reopen: opening the palette")
-        clipNow()
+        nutNow()
         return true
     }
 
@@ -108,14 +108,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
         // These items are properties, so a second call would hand NSMenu an
         // item that already belongs to a menu: that is an assertion failure,
         // and the app dies on the spot.
-        for item in [clipItem, undoItem, loginItem, autoUpdateItem] { item.menu?.removeItem(item) }
+        for item in [nutItem, undoItem, loginItem, autoUpdateItem] { item.menu?.removeItem(item) }
         let menu = NSMenu()
         menu.delegate = self
-        menu.addItem(clipItem)
-        menu.addItem(NSMenuItem(title: "Search Clips…", action: #selector(browse), keyEquivalent: ""))
+        menu.addItem(nutItem)
+        menu.addItem(NSMenuItem(title: "Search Nuts…", action: #selector(browse), keyEquivalent: ""))
         menu.addItem(undoItem)
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Open Clips Folder", action: #selector(openFolder), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Open Nuts Folder", action: #selector(openFolder), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Rebuild Index", action: #selector(reindex), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Preferences…", action: #selector(showPreferences), keyEquivalent: ","))
@@ -131,14 +131,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        clipItem.title = "Clip Now   \(Hotkey.current.label)"
+        nutItem.title = "Nut Now   \(Hotkey.current.label)"
         undoItem.isEnabled = lastClip != nil
         loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         autoUpdateItem.state = Updater.automatic ? .on : .off
     }
 
     private func registerHotkey() {
-        hotkey.register(Hotkey.current) { [weak self] in self?.clipNow() }
+        hotkey.register(Hotkey.current) { [weak self] in self?.nutNow() }
     }
 
     private func settingsChanged() {
@@ -161,7 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
 
     // MARK: Capture
 
-    @objc private func clipNow() {
+    @objc private func nutNow() {
         guard Settings.folder != nil else { preferences.show(firstRun: true); return }
         if palette.isVisible { palette.hide(); return }
         // Always the capture palette, even with an empty clipboard: the hotkey
@@ -178,25 +178,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
 
     func palette(_ palette: Palette, didCapture ctx: CaptureContext, tags: [String], why: String) {
         do {
-            let clip = try Store.add(title: ctx.suggestedTitle, url: ctx.url, source: ctx.source,
+            let nut = try Store.add(title: ctx.suggestedTitle, url: ctx.url, source: ctx.source,
                                      tags: tags, why: why, body: ctx.selection.trimmed)
-            lastClip = clip
+            lastClip = nut
             Capture.lastSavedChangeCount = ctx.changeCount
-            let detail = tags.isEmpty ? clip.path : tags.map { "#\($0)" }.joined(separator: " ") + " · " + clip.path
-            // A clip saved without a reason is the one that cannot be used
+            let detail = tags.isEmpty ? nut.path : tags.map { "#\($0)" }.joined(separator: " ") + " · " + nut.path
+            // A nut saved without a reason is the one that cannot be used
             // later, and the moment it is cheapest to add is the second after
             // saving — the page is still on screen and the thought is still
             // there. Offered, never asked for.
             let addReason: (() -> Void)? = why.trimmed.isEmpty
                 ? { [weak self] in
-                    guard let self, let saved = try? Store.read(path: clip.path) else { return }
+                    guard let self, let saved = try? Store.read(path: nut.path) else { return }
                     self.palette.show(.edit(saved), focusingNote: true)
                   }
                 : nil
-            toast.show("Saved “\(clip.title.excerpt(40))”", detail: detail,
+            toast.show("Saved “\(nut.title.excerpt(40))”", detail: detail,
                        reason: addReason) { [weak self] in self?.undoLast() }
-            Log.write("saved \(clip.path)")
-            if let url = ctx.url.flatMap(URL.init(string:)) { extract(url, into: clip) }
+            Log.write("saved \(nut.path)")
+            if let url = ctx.url.flatMap(URL.init(string:)) { extract(url, into: nut) }
         } catch {
             Log.write("save failed: \(error.localizedDescription)")
             let alert = NSAlert(error: error)
@@ -207,12 +207,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
 
     /// Fetches the page after the palette has closed, and completes the file.
     /// The title on disk is the browser's until the article gives a better one.
-    private func extract(_ url: URL, into clip: Clip) {
+    private func extract(_ url: URL, into nut: Nut) {
         Extractor.shared.extract(url) { [weak self] result in
             guard let result else { return }
             // Undo may have removed the file in the meantime: reading it back
             // is the check.
-            guard let current = try? Store.read(path: clip.path) else { return }
+            guard let current = try? Store.read(path: nut.path) else { return }
             // The browser's title stands until the page gives a better one.
             let better = (current.title == url.domain || current.title.isEmpty) ? result.title : nil
             do {
@@ -220,9 +220,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
                 if result.markdown.trimmed.isEmpty {
                     Log.write("extracted: no text at \(url.absoluteString), kept the title")
                 }
-                if self?.lastClip?.path == clip.path { self?.lastClip = try Store.read(path: clip.path) }
+                if self?.lastClip?.path == nut.path { self?.lastClip = try Store.read(path: nut.path) }
                 if !result.markdown.trimmed.isEmpty {
-                    Log.write("extracted \(result.markdown.count) chars into \(clip.path)")
+                    Log.write("extracted \(result.markdown.count) chars into \(nut.path)")
                 }
             } catch {
                 Log.write("extract save failed: \(error.localizedDescription)")
@@ -232,25 +232,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
 
     func paletteWantsSettings(_ palette: Palette) { preferences.show(firstRun: false) }
 
-    func palette(_ palette: Palette, didEdit clip: Clip) {
-        do { try Store.save(clip) } catch { Log.write("edit failed: \(error.localizedDescription)") }
+    func palette(_ palette: Palette, didEdit nut: Nut) {
+        do { try Store.save(nut) } catch { Log.write("edit failed: \(error.localizedDescription)") }
     }
 
-    func palette(_ palette: Palette, didDelete clip: Clip) {
+    func palette(_ palette: Palette, didDelete nut: Nut) {
         do {
-            try Store.delete(clip)
-            if lastClip?.path == clip.path { lastClip = nil }
+            try Store.delete(nut)
+            if lastClip?.path == nut.path { lastClip = nil }
         } catch { Log.write("delete failed: \(error.localizedDescription)") }
     }
 
     @objc private func undoLast() {
-        guard let clip = lastClip else { return }
+        guard let nut = lastClip else { return }
         toast.dismiss()
-        // The clipboard is fair game again: undoing a clip is not "already saved".
+        // The clipboard is fair game again: undoing a nut is not "already saved".
         Capture.lastSavedChangeCount = -1
         do {
-            try Store.delete(clip)
-            Log.write("undo \(clip.path)")
+            try Store.delete(nut)
+            Log.write("undo \(nut.path)")
         } catch {
             Log.write("undo failed: \(error.localizedDescription)")
         }

@@ -1,4 +1,4 @@
-// A small confirmation in the bottom-right corner after a clip is saved, with
+// A small confirmation in the bottom-right corner after a nut is saved, with
 // an Undo button. Gone by itself after a few seconds.
 import AppKit
 
@@ -8,9 +8,9 @@ final class Toast {
     private var onUndo: (() -> Void)?
     private var onReason: (() -> Void)?
     /// ⌘Z is held only while the toast is on screen: five seconds during which
-    /// undo means "undo the clip", then the key goes back to the active app.
+    /// undo means "undo the nut", then the key goes back to the active app.
     private let undoKey = GlobalHotkey()
-    /// Same five seconds for ⌘Y, offered only when the clip was saved without
+    /// Same five seconds for ⌘Y, offered only when the nut was saved without
     /// a reason — the one field nothing else can reconstruct later.
     private let reasonKey = GlobalHotkey()
 

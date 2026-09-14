@@ -82,7 +82,7 @@ final class Extractor: NSObject, WKNavigationDelegate {
           } catch (e) {
             // Readability failed, but the page still said what it is. Handing
             // back the title and the description beats handing back nothing:
-            // the clip keeps its real name instead of its domain.
+            // the nut keeps its real name instead of its domain.
             return { title: heading, byline: '', excerpt: description, markdown: '',
                      description: description, error: String(e) };
           }
@@ -153,7 +153,7 @@ final class Extractor: NSObject, WKNavigationDelegate {
             // here threw that away, and a saved YouTube video ended up titled
             // "youtube.com": nothing to search, nothing to recognise. Anything
             // at all is worth handing back; the caller decides what to do with
-            // a clip that has a title and no text.
+            // a nut that has a title and no text.
             let nothing = out.markdown.isEmpty && out.title.trimmed.isEmpty
             self?.finish(web, with: nothing ? nil : out)
         }

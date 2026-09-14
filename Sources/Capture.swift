@@ -31,12 +31,12 @@ struct CaptureContext {
         if let pageTitle, !pageTitle.trimmed.isEmpty { return pageTitle.trimmed }
         if !selection.trimmed.isEmpty { return selection.excerpt(70) }
         if let url { return URL(string: url)?.domain ?? url }
-        return "Untitled clip"
+        return "Untitled nut"
     }
 }
 
 enum Capture {
-    /// Pasteboard generation of the last clip saved, so pressing the hotkey
+    /// Pasteboard generation of the last nut saved, so pressing the hotkey
     /// again without copying anything new can be pointed out.
     static var lastSavedChangeCount = -1
 

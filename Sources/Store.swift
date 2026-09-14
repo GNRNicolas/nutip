@@ -1,9 +1,9 @@
-// The folder of Markdown files: writing clips, reading them back, and the
+// The folder of Markdown files: writing nuts, reading them back, and the
 // generated indexes. This is the whole product; everything else is a way in.
 import Foundation
 
-/// One clip, as stored in the frontmatter of its file.
-struct Clip: Equatable {
+/// One nut, as stored in the frontmatter of its file.
+struct Nut: Equatable {
     var path: String            // relative to the folder, e.g. 2026-09/2026-09-13-title.md
     var title: String
     var url: String?
@@ -11,7 +11,7 @@ struct Clip: Equatable {
     var capturedAt: Date
     var tags: [String]
     var why: String
-    /// Words this clip is about, counted from its own text by `Keywords`.
+    /// Words this nut is about, counted from its own text by `Keywords`.
     /// Indexed like the body, so a question that paraphrases the page still
     /// finds it. Editable by hand; regenerated only when empty.
     var keywords: [String] = []
@@ -33,7 +33,7 @@ enum Store {
 
     static var folder: URL? { Settings.folder }
 
-    /// Files Nutip generates. Never parsed as clips, never counted.
+    /// Files Nutip generates. Never parsed as nuts, never counted.
     static let generatedNames: Set<String> = ["INDEX.md", "README.md", "AGENTS.md"]
     static let tagsDirectory = "tags"
 
@@ -45,17 +45,17 @@ enum Store {
 
     // MARK: Writing
 
-    /// Writes a new clip and returns it with its final path. Regenerates the
+    /// Writes a new nut and returns it with its final path. Regenerates the
     /// indexes and updates the search index.
     @discardableResult
     static func add(title: String, url: String?, source: String, tags: [String], why: String,
-                    body: String, at date: Date = Date()) throws -> Clip {
+                    body: String, at date: Date = Date()) throws -> Nut {
         let root = try ensureFolder()
         let month = Dates.month(date)
         let dir = root.appendingPathComponent(month, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
-        let cleanTitle = title.trimmed.isEmpty ? (url ?? "Untitled clip") : title.trimmed
+        let cleanTitle = title.trimmed.isEmpty ? (url ?? "Untitled nut") : title.trimmed
         let base = "\(Dates.day(date))-\(Slug.make(cleanTitle))"
         var name = base + ".md"
         var n = 2
@@ -64,12 +64,12 @@ enum Store {
             n += 1
         }
 
-        var clip = Clip(path: "\(month)/\(name)", title: cleanTitle, url: url?.trimmed,
+        var nut = Nut(path: "\(month)/\(name)", title: cleanTitle, url: url?.trimmed,
                         source: source, capturedAt: date, tags: canonical(tags),
                         why: why.trimmed, body: body)
-        if clip.url?.isEmpty == true { clip.url = nil }
-        try save(clip)
-        return clip
+        if nut.url?.isEmpty == true { nut.url = nil }
+        try save(nut)
+        return nut
     }
 
     /// Tags as the user spells them: a tag that matches one in Settings takes
@@ -80,47 +80,47 @@ enum Store {
         return tags.map(Slug.tag).map { known[$0.tagKey] ?? $0 }.uniquedTags()
     }
 
-    /// Rewrites a clip in place (frontmatter and body), then regenerates only
+    /// Rewrites a nut in place (frontmatter and body), then regenerates only
     /// the index pages that mention it.
-    /// `old` is the clip as it is on disk. Callers that have just read it say
+    /// `old` is the nut as it is on disk. Callers that have just read it say
     /// so: `append` used to read the file, hand the result here, and have it
     /// read and parse the same file a second time.
-    static func save(_ clip: Clip, old known: Clip? = nil) throws {
-        guard let file = clip.fileURL else { throw StoreError.noFolder }
-        var clip = clip
-        let old = known ?? (try? read(path: clip.path)) ?? nil
-        if !clip.bodyLoaded {
-            // This clip came from the index, which carries no body and no
+    static func save(_ nut: Nut, old known: Nut? = nil) throws {
+        guard let file = nut.fileURL else { throw StoreError.noFolder }
+        var nut = nut
+        let old = known ?? (try? read(path: nut.path)) ?? nil
+        if !nut.bodyLoaded {
+            // This nut came from the index, which carries no body and no
             // keywords. Taking them from the file is what keeps editing a tag
             // from truncating the page text and rewriting the keywords.
-            clip.body = old?.body ?? ""
-            if clip.keywords.isEmpty { clip.keywords = old?.keywords ?? [] }
-            clip.bodyLoaded = true
+            nut.body = old?.body ?? ""
+            if nut.keywords.isEmpty { nut.keywords = old?.keywords ?? [] }
+            nut.bodyLoaded = true
         }
-        clip.keywords = keywords(for: clip)
-        try writeText(render(clip), to: file)
-        Index.upsert(clip)
-        regenerateIndexes(months: [clip.month], tags: Set(clip.tags).union(old?.tags ?? []))
+        nut.keywords = keywords(for: nut)
+        try writeText(render(nut), to: file)
+        Index.upsert(nut)
+        regenerateIndexes(months: [nut.month], tags: Set(nut.tags).union(old?.tags ?? []))
     }
 
     /// Keywords are derived once, when there is finally something to derive
-    /// them from: a clip is written before its page is fetched, so the first
+    /// them from: a nut is written before its page is fetched, so the first
     /// save of a link has nothing but a title. A spelling the user edited by
     /// hand is never overwritten.
-    static func keywords(for clip: Clip) -> [String] {
-        guard clip.keywords.isEmpty else { return clip.keywords }
-        return Keywords.derive(title: clip.title, why: clip.why, body: clip.body, tags: clip.tags)
+    static func keywords(for nut: Nut) -> [String] {
+        guard nut.keywords.isEmpty else { return nut.keywords }
+        return Keywords.derive(title: nut.title, why: nut.why, body: nut.body, tags: nut.tags)
     }
 
-    /// Writes an extracted page into a clip that is already on disk. Both the
+    /// Writes an extracted page into a nut that is already on disk. Both the
     /// palette and `nutip add -x` end here, because both had grown their own
     /// copy of the same four steps and the copies had drifted apart.
     ///
     /// Title first: `append` re-reads the file, so saving the title afterwards
     /// would drop the body that was just written.
-    static func complete(_ clip: Clip, title: String?, byline: String, markdown: String) throws {
-        var updated = clip
-        if let title, !title.isEmpty, title != clip.title {
+    static func complete(_ nut: Nut, title: String?, byline: String, markdown: String) throws {
+        var updated = nut
+        if let title, !title.isEmpty, title != nut.title {
             updated.title = title
             try save(updated)
         }
@@ -129,19 +129,19 @@ enum Store {
             // A video, a paywall, an app: the link and the title are all there
             // is. Said in the file, so that reading it later — or an agent
             // searching it — is not left wondering where the text went.
-            article = "*(no readable text on this page — the link above is the clip.)*"
+            article = "*(no readable text on this page — the link above is the nut.)*"
         } else if !byline.isEmpty {
             article = "*\(byline)*\n\n" + article
         }
         try append(article, to: updated)
     }
 
-    /// Appends extracted page content to an existing clip's body.
-    static func append(_ markdown: String, to clip: Clip) throws {
-        var updated = try read(path: clip.path) ?? clip
+    /// Appends extracted page content to an existing nut's body.
+    static func append(_ markdown: String, to nut: Nut) throws {
+        var updated = try read(path: nut.path) ?? nut
         var trimmed = markdown.trimmed
         guard !trimmed.isEmpty else { return }
-        // A clip is meant to be read, by a person or an agent, in one go. A
+        // A nut is meant to be read, by a person or an agent, in one go. A
         // page that runs past the limit keeps its beginning and its link.
         if trimmed.count > Settings.bodyLimit {
             let cut = trimmed.index(trimmed.startIndex, offsetBy: Settings.bodyLimit)
@@ -153,23 +153,23 @@ enum Store {
         try save(updated, old: onDisk)
     }
 
-    static func delete(_ clip: Clip) throws {
-        guard let file = clip.fileURL else { throw StoreError.noFolder }
+    static func delete(_ nut: Nut) throws {
+        guard let file = nut.fileURL else { throw StoreError.noFolder }
         try FileManager.default.trashItem(at: file, resultingItemURL: nil)
-        Index.remove(path: clip.path)
-        regenerateIndexes(months: [clip.month], tags: Set(clip.tags))
+        Index.remove(path: nut.path)
+        regenerateIndexes(months: [nut.month], tags: Set(nut.tags))
     }
 
     // MARK: Reading
 
-    /// Parses one clip file. Nil when the file is not a Nutip clip (no frontmatter).
-    static func read(path: String) throws -> Clip? {
+    /// Parses one nut file. Nil when the file is not a Nutip nut (no frontmatter).
+    static func read(path: String) throws -> Nut? {
         guard let file = try url(for: path) else { return nil }
         let text = try String(contentsOf: file, encoding: .utf8)
         return parse(text, path: path)
     }
 
-    /// Resolves a clip path inside the folder, or nil when it points outside
+    /// Resolves a nut path inside the folder, or nil when it points outside
     /// it. `..` in a path handed over by a script or an agent must not reach a
     /// file Nutip was never meant to touch.
     static func url(for path: String) throws -> URL? {
@@ -183,13 +183,13 @@ enum Store {
         return file
     }
 
-    /// Every clip file in the folder with its modification date and size,
+    /// Every nut file in the folder with its modification date and size,
     /// without opening any of them: this is how the index knows what changed.
-    /// Every clip file with its size and modification date, read one directory
+    /// Every nut file with its size and modification date, read one directory
     /// at a time. `includingPropertiesForKeys` is the point: it asks the file
     /// system for those two values in bulk, where a per-file
     /// `attributesOfItem` builds a twenty-entry dictionary each time. On five
-    /// thousand clips that was a quarter of a second, paid on every single
+    /// thousand nuts that was a quarter of a second, paid on every single
     /// command before anything else happened.
     static func stamps() -> [String: Stamp] {
         guard let root = folder,
@@ -218,9 +218,9 @@ enum Store {
         return Stamp(modified: v.contentModificationDate?.timeIntervalSince1970 ?? 0, size: v.fileSize ?? 0)
     }
 
-    /// Every clip in the folder, newest first. Reads every file: this is the
+    /// Every nut in the folder, newest first. Reads every file: this is the
     /// slow path, kept for `nutip reindex` and for when the index is missing.
-    static func all() -> [Clip] {
+    static func all() -> [Nut] {
         stamps().keys.compactMap { try? read(path: $0) }.sorted { $0.capturedAt > $1.capturedAt }
     }
 
@@ -229,33 +229,33 @@ enum Store {
     /// The frontmatter is deliberately plain: quoted strings, a flow-style
     /// list for tags, ISO 8601 for the date. Obsidian, pandoc and a regex all
     /// read it. Keys never change order, so diffs stay small.
-    static func render(_ clip: Clip) -> String {
+    static func render(_ nut: Nut) -> String {
         var lines = ["---"]
-        lines.append("title: \(quote(clip.title))")
-        if let url = clip.url, !url.isEmpty { lines.append("url: \(url)") }
-        lines.append("source: \(quote(clip.source))")
-        lines.append("captured_at: \(Dates.iso.string(from: clip.capturedAt))")
-        lines.append("tags: [\(clip.tags.joined(separator: ", "))]")
-        if !clip.why.isEmpty { lines.append("why: \(quote(clip.why))") }
-        if !clip.keywords.isEmpty { lines.append("keywords: [\(clip.keywords.joined(separator: ", "))]") }
+        lines.append("title: \(quote(nut.title))")
+        if let url = nut.url, !url.isEmpty { lines.append("url: \(url)") }
+        lines.append("source: \(quote(nut.source))")
+        lines.append("captured_at: \(Dates.iso.string(from: nut.capturedAt))")
+        lines.append("tags: [\(nut.tags.joined(separator: ", "))]")
+        if !nut.why.isEmpty { lines.append("why: \(quote(nut.why))") }
+        if !nut.keywords.isEmpty { lines.append("keywords: [\(nut.keywords.joined(separator: ", "))]") }
         lines.append("---")
         lines.append("")
-        lines.append("# \(clip.title)")
+        lines.append("# \(nut.title)")
         lines.append("")
-        if let url = clip.url, !url.isEmpty {
+        if let url = nut.url, !url.isEmpty {
             lines.append("<\(url)>")
             lines.append("")
         }
-        // A short text clip is its own title: no point writing it twice.
-        let body = clip.body.trimmed
-        if !body.isEmpty, body != clip.title {
+        // A short text nut is its own title: no point writing it twice.
+        let body = nut.body.trimmed
+        if !body.isEmpty, body != nut.title {
             lines.append(body)
             lines.append("")
         }
         return lines.joined(separator: "\n")
     }
 
-    static func parse(_ text: String, path: String) -> Clip? {
+    static func parse(_ text: String, path: String) -> Nut? {
         guard text.hasPrefix("---\n") else { return nil }
         let afterOpen = text.index(text.startIndex, offsetBy: 4)
         guard let close = text.range(of: "\n---\n", range: afterOpen..<text.endIndex)
@@ -290,7 +290,7 @@ enum Store {
             ?? (try? FileManager.default.attributesOfItem(atPath: (folder?.appendingPathComponent(path).path) ?? "")[.creationDate] as? Date)
             ?? Date()
 
-        return Clip(path: path, title: title, url: fields["url"].map(unquote), source: unquote(fields["source"] ?? ""),
+        return Nut(path: path, title: title, url: fields["url"].map(unquote), source: unquote(fields["source"] ?? ""),
                     capturedAt: date, tags: tags, why: unquote(fields["why"] ?? ""),
                     keywords: list(fields["keywords"]), body: rest)
     }
@@ -317,14 +317,28 @@ enum Store {
 
     // MARK: Generated files
 
-    static let marker = "<!-- generated by Nutip. Do not edit: it is rewritten after every clip -->"
+    /// Written at the top of every page Nutip generates, and the test for
+    /// "may I overwrite this?".
+    static let marker = "<!-- generated by Nutip. Do not edit: it is rewritten after every nut -->"
+
+    /// The wordings this marker has had. Nutip has to keep recognising the
+    /// pages it wrote under an older one: the day the sentence changed, every
+    /// existing INDEX.md stopped matching, and Nutip quietly refused to touch
+    /// its own files ever again — frozen folders, no error anywhere.
+    static let markers = [
+        marker,
+        "<!-- generated by Nutip. Do not edit: it is rewritten after every clip -->",
+    ]
+
+    /// True when this text is a page Nutip generated, whichever version wrote it.
+    static func isGenerated(_ text: String) -> Bool { markers.contains { text.contains($0) } }
 
     /// The pages that describe the folder: `INDEX.md` at the root, one page
     /// per month inside the month, one per tag under `tags/`, plus `AGENTS.md`
     /// and `README.md`.
     ///
     /// A save touches one month and a handful of tags, and writes only those:
-    /// the cost of a clip does not grow with the size of the folder. `full`
+    /// the cost of a nut does not grow with the size of the folder. `full`
     /// rewrites everything and removes what is stale (`nutip reindex`).
     static func regenerateIndexes(months: Set<String> = [], tags: Set<String> = [], full: Bool = false) {
         // Without the cache, every count below comes back zero and the pages
@@ -337,18 +351,18 @@ enum Store {
         let tagCounts = Index.tagCounts()
         let total = monthCounts.reduce(0) { $0 + $1.1 }
 
-        write(rootIndex(clips: Index.recent(limit: limit), total: total, months: monthCounts, tags: tagCounts),
+        write(rootIndex(nuts: Index.recent(limit: limit), total: total, months: monthCounts, tags: tagCounts),
               to: root.appendingPathComponent("INDEX.md"))
 
         for month in (full ? monthCounts.map(\.0) : Array(months)) where !month.isEmpty {
             let dir = root.appendingPathComponent(month, isDirectory: true)
             guard FileManager.default.fileExists(atPath: dir.path) else { continue }
-            let clips = Index.month(month)
-            if clips.isEmpty {
+            let nuts = Index.month(month)
+            if nuts.isEmpty {
                 removeGenerated(dir.appendingPathComponent("INDEX.md"))
             } else {
-                write(index(title: month, subtitle: "\(clips.count) clip\(clips.count == 1 ? "" : "s"), oldest first.",
-                            clips: clips, prefix: "", stripMonth: true, parents: ["../INDEX.md"]),
+                write(index(title: month, subtitle: "\(nuts.count) nut\(nuts.count == 1 ? "" : "s"), oldest first.",
+                            nuts: nuts, prefix: "", stripMonth: true, parents: ["../INDEX.md"]),
                       to: dir.appendingPathComponent("INDEX.md"))
             }
         }
@@ -356,7 +370,7 @@ enum Store {
         let tagsDir = root.appendingPathComponent(tagsDirectory, isDirectory: true)
         try? FileManager.default.createDirectory(at: tagsDir, withIntermediateDirectories: true)
         let counts = Dictionary(tagCounts.map { ($0.0.tagKey, $0.1) }, uniquingKeysWith: +)
-        // One page per tag, named the way `tagCounts` spells it: two clips
+        // One page per tag, named the way `tagCounts` spells it: two nuts
         // written `Réflexions` and `reflexions` share a tag, so they share a
         // page, and the other spelling of it is removed.
         let spelling = Dictionary(tagCounts.map { ($0.0.tagKey, $0.0) }, uniquingKeysWith: { a, _ in a })
@@ -373,18 +387,18 @@ enum Store {
             for page in pages where page.tagKey == tag.tagKey && page != name {
                 removeGenerated(tagsDir.appendingPathComponent("\(page).md"))
             }
-            // A page is written for a tag that has clips. A configured tag
+            // A page is written for a tag that has nuts. A configured tag
             // nobody has used yet would only be an empty page to open.
             if n == 0 {
                 removeGenerated(file)
                 continue
             }
-            let clips = Index.recent(tag: tag, limit: limit)
+            let nuts = Index.recent(tag: tag, limit: limit)
             write(index(title: "#\(name)",
-                        subtitle: n == clips.count
-                            ? "\(n) clip\(n == 1 ? "" : "s"), newest first."
-                            : "\(clips.count) most recent of \(n) clips.",
-                        clips: clips, prefix: "../", parents: ["../INDEX.md"]),
+                        subtitle: n == nuts.count
+                            ? "\(n) nut\(n == 1 ? "" : "s"), newest first."
+                            : "\(nuts.count) most recent of \(n) nuts.",
+                        nuts: nuts, prefix: "../", parents: ["../INDEX.md"]),
                   to: file)
         }
 
@@ -393,21 +407,21 @@ enum Store {
     }
 
     private static func removeGenerated(_ file: URL) {
-        guard let text = try? String(contentsOf: file, encoding: .utf8), text.contains(marker) else { return }
+        guard let text = try? String(contentsOf: file, encoding: .utf8), isGenerated(text) else { return }
         try? FileManager.default.removeItem(at: file)
     }
 
-    /// The root index: what the folder holds, then the most recent clips, then
+    /// The root index: what the folder holds, then the most recent nuts, then
     /// every tag and every month as a link. One read tells an agent the shape
     /// of the whole folder, however large it has become.
-    private static func rootIndex(clips: [Clip], total: Int, months: [(String, Int)], tags: [(String, Int)]) -> String {
-        var lines = [marker, "", "# Nutip clips", ""]
+    private static func rootIndex(nuts: [Nut], total: Int, months: [(String, Int)], tags: [(String, Int)]) -> String {
+        var lines = [marker, "", "# Nuts", ""]
         if total == 0 {
             lines.append("Nothing saved yet.")
             lines.append("")
             return lines.joined(separator: "\n")
         }
-        lines.append("\(total) clip\(total == 1 ? "" : "s") in \(months.count) month\(months.count == 1 ? "" : "s"). "
+        lines.append("\(total) nut\(total == 1 ? "" : "s") in \(months.count) month\(months.count == 1 ? "" : "s"). "
                      + "One Markdown file each, under `YYYY-MM/`. Start here, then open what you need.")
         lines.append("")
         if !tags.isEmpty {
@@ -418,37 +432,37 @@ enum Store {
             lines.append("**Months** · " + months.map { "[\($0.0)](\($0.0)/INDEX.md) \($0.1)" }.joined(separator: " · "))
             lines.append("")
         }
-        lines.append(total == clips.count
-                     ? "## All \(total) clip\(total == 1 ? "" : "s"), newest first"
-                     : "## The \(clips.count) most recent of \(total), newest first")
+        lines.append(total == nuts.count
+                     ? "## All \(total) nut\(total == 1 ? "" : "s"), newest first"
+                     : "## The \(nuts.count) most recent of \(total), newest first")
         lines.append("")
-        lines += clips.map { line(for: $0, prefix: "") }
-        if total > clips.count {
+        lines += nuts.map { line(for: $0, prefix: "") }
+        if total > nuts.count {
             lines.append("")
-            lines.append("Older clips: the month pages above, or `nutip search \"…\"`.")
+            lines.append("Older nuts: the month pages above, or `nutip search \"…\"`.")
         }
         lines.append("")
         return lines.joined(separator: "\n")
     }
 
-    private static func index(title: String, subtitle: String, clips: [Clip], prefix: String,
+    private static func index(title: String, subtitle: String, nuts: [Nut], prefix: String,
                               stripMonth: Bool = false, parents: [String]) -> String {
         var lines = [marker, "", "# \(title)", "", subtitle, ""]
-        lines += clips.map { line(for: $0, prefix: prefix, stripMonth: stripMonth) }
+        lines += nuts.map { line(for: $0, prefix: prefix, stripMonth: stripMonth) }
         lines.append("")
-        lines.append("[All clips](\(parents[0]))")
+        lines.append("[All nuts](\(parents[0]))")
         lines.append("")
         return lines.joined(separator: "\n")
     }
 
     /// One index line. Inside a month page the file sits next to the page, so
     /// the month drops out of the link.
-    private static func line(for clip: Clip, prefix: String, stripMonth: Bool = false) -> String {
-        let path = stripMonth ? String(clip.path.dropFirst(clip.month.count + 1)) : clip.path
-        var line = "- \(Dates.day(clip.capturedAt)) · [\(clip.title.replacingOccurrences(of: "]", with: "\\]"))](\(prefix)\(path))"
-        if !clip.domain.isEmpty { line += " · \(clip.domain)" }
-        if !clip.tags.isEmpty { line += " · " + clip.tags.map { "#\($0)" }.joined(separator: " ") }
-        if !clip.why.isEmpty { line += " · \(clip.why.excerpt(140))" }
+    private static func line(for nut: Nut, prefix: String, stripMonth: Bool = false) -> String {
+        let path = stripMonth ? String(nut.path.dropFirst(nut.month.count + 1)) : nut.path
+        var line = "- \(Dates.day(nut.capturedAt)) · [\(nut.title.replacingOccurrences(of: "]", with: "\\]"))](\(prefix)\(path))"
+        if !nut.domain.isEmpty { line += " · \(nut.domain)" }
+        if !nut.tags.isEmpty { line += " · " + nut.tags.map { "#\($0)" }.joined(separator: " ") }
+        if !nut.why.isEmpty { line += " · \(nut.why.excerpt(140))" }
         return line
     }
 
@@ -456,30 +470,30 @@ enum Store {
     /// read, what not to touch.
     /// The folder's note to an agent. Deliberately free of any figure that
     /// moves: written on every save, it would otherwise show up in `git
-    /// status` after each clip for the sake of a counter INDEX.md already has.
+    /// status` after each nut for the sake of a counter INDEX.md already has.
     private static func writeAgents(root: URL) {
         let text = """
         \(marker)
 
         # AGENTS.md
 
-        A folder of clips: things a person saved on purpose, with a one-line reason.
+        A folder of nuts: things a person saved on purpose, with a one-line reason.
         Written by [Nutip](https://github.com/GNRNicolas/nutip). Plain Markdown, no database
         needed to read it.
 
         ## Read in this order
 
         1. `INDEX.md` at the root: the counts, every tag, every month, and the most recent
-           \(Settings.indexLimit) clips with their `why` line. One read, whatever the folder
+           \(Settings.indexLimit) nuts with their `why` line. One read, whatever the folder
            holds — the count is at the top of it.
         2. `tags/<tag>.md` for one subject, `YYYY-MM/INDEX.md` for one month.
-        3. The clip files themselves for the full text.
+        3. The nut files themselves for the full text.
 
         Never read every file to answer a question: the index pages carry the title, the
-        date, the source, the tags and the `why` of each clip, which is usually enough to
+        date, the source, the tags and the `why` of each nut, which is usually enough to
         pick the three or four worth opening.
 
-        ## One clip
+        ## One nut
 
         ```markdown
         ---
@@ -517,11 +531,11 @@ enum Store {
         ## Rules
 
         - `INDEX.md`, `AGENTS.md`, `README.md`, `tags/*.md` and `YYYY-MM/INDEX.md` are
-          generated: they are rewritten after every clip, so edits to them are lost.
+          generated: they are rewritten after every nut, so edits to them are lost.
           They all start with an HTML comment saying so.
-        - Clip files are the truth and are safe to edit, move or delete; the indexes catch
+        - Nut files are the truth and are safe to edit, move or delete; the indexes catch
           up on the next save, or on `nutip reindex`.
-        - Adding a clip: `nutip add <text or url> -t tag -w "why"`, or write the file
+        - Adding a nut: `nutip add <text or url> -t tag -w "why"`, or write the file
           yourself under `YYYY-MM/` with the frontmatter above and run `nutip reindex`.
 
         """
@@ -535,22 +549,22 @@ enum Store {
 
         # This folder
 
-        Clips saved with [Nutip](https://github.com/GNRNicolas/nutip), a macOS app that turns
+        Nuts saved with [Nutip](https://github.com/GNRNicolas/nutip), a macOS app that turns
         whatever you copied into a Markdown file. Everything here is plain text you own;
         Nutip only adds files, and it never needs to be running for them to be useful.
 
         ## Layout
 
-        - `INDEX.md`: the counts, the tags, the months, and the \(Settings.indexLimit) most recent clips.
+        - `INDEX.md`: the counts, the tags, the months, and the \(Settings.indexLimit) most recent nuts.
         - `tags/<tag>.md`: the same list, one tag.
         - `YYYY-MM/INDEX.md`: everything saved that month.
-        - `YYYY-MM/YYYY-MM-DD-title.md`: one file per clip.
+        - `YYYY-MM/YYYY-MM-DD-title.md`: one file per nut.
         - `AGENTS.md`: the same layout, written for an AI agent.
 
-        Generated pages start with an HTML comment and are rewritten after every clip.
+        Generated pages start with an HTML comment and are rewritten after every nut.
         Delete the comment and the page becomes yours: Nutip stops touching it.
 
-        ## One clip
+        ## One nut
 
         ```markdown
         ---
@@ -585,7 +599,7 @@ enum Store {
     private static func write(_ text: String, to url: URL) {
         if FileManager.default.fileExists(atPath: url.path) {
             guard let existing = try? String(contentsOf: url, encoding: .utf8) else { return }
-            if existing == text || !existing.contains(marker) { return }
+            if existing == text || !isGenerated(existing) { return }
         }
         try? writeText(text, to: url)
     }
@@ -602,7 +616,7 @@ enum StoreError: LocalizedError {
     case noFolder
     var errorDescription: String? {
         switch self {
-        case .noFolder: return "No clips folder is set. Open Nutip and choose one."
+        case .noFolder: return "No nuts folder is set. Open Nutip and choose one."
         }
     }
 }

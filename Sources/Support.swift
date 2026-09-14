@@ -54,7 +54,7 @@ enum Settings {
     static let defaultFolder = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Documents/Nutip")
 
-    /// The folder every clip is written to. Nil until onboarding picked one.
+    /// The folder every nut is written to. Nil until onboarding picked one.
     static var folder: URL? {
         get {
             if let env = ProcessInfo.processInfo.environment["NUTIP_DIR"], !env.isEmpty {
@@ -82,7 +82,7 @@ enum Settings {
     /// on disk and grep-able; the index is a window, not an archive.
     static let indexLimit = 500
 
-    /// How much extracted page text one clip may hold. A clip is meant to be
+    /// How much extracted page text one nut may hold. A nut is meant to be
     /// read in one go, by a person or an agent; past this the link is better
     /// than the text, and the folder stays a folder rather than an archive.
     static let bodyLimit = 40_000
@@ -131,7 +131,7 @@ enum Slug {
             if out.count >= limit { break }
         }
         while out.hasSuffix("-") { out.removeLast() }
-        return out.isEmpty ? "clip" : out
+        return out.isEmpty ? "nut" : out
     }
 
     /// A tag keeps the letters that were typed, capitals and accents included:
@@ -166,7 +166,7 @@ enum Dates {
         return f
     }()
 
-    /// Built once. These are called per clip while writing an index page —
+    /// Built once. These are called per nut while writing an index page —
     /// five hundred lines on every save — and a DateFormatter is among the
     /// most expensive objects in Foundation to construct. Never mutated after
     /// this, which is what makes sharing them safe.

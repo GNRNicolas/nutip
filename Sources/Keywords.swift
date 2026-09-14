@@ -1,4 +1,4 @@
-// The words a clip is about, derived from the clip itself.
+// The words a nut is about, derived from the nut itself.
 //
 // Full-text search matches words, and the question asked months later rarely
 // uses the words the page used ("le site pour save des trucs" against a page
@@ -16,7 +16,7 @@ enum Keywords {
     static let count = 8
 
     /// Words too short to carry a topic, with the exception of the acronyms
-    /// this user's clips are full of (API, RLS, SQL, IA).
+    /// this user's nuts are full of (API, RLS, SQL, IA).
     private static let minLength = 3
 
     /// How many times a word has to come back before it counts as a subject.
@@ -24,7 +24,7 @@ enum Keywords {
     private static let repeats = 3
 
     static func derive(title: String, why: String, body: String, tags: [String]) -> [String] {
-        // A short text clip is its own summary: counting words in three lines
+        // A short text nut is its own summary: counting words in three lines
         // yields the three lines back, and the index already holds them.
         guard title.count + why.count + body.count >= 200 else { return [] }
 
@@ -51,7 +51,7 @@ enum Keywords {
     }
 
     /// A word that says nothing about a subject. Used both when counting a
-    /// clip's keywords and when reading a question: "les règles d'ergonomie
+    /// nut's keywords and when reading a question: "les règles d'ergonomie
     /// pour relire une interface" carries four words that match half the
     /// folder, and they outvote the two that matter.
     static func isNoise(_ word: String) -> Bool {
@@ -69,7 +69,7 @@ enum Keywords {
             }
     }
 
-    /// Link targets, counted as words, make every clip about its own domain:
+    /// Link targets, counted as words, make every nut about its own domain:
     /// a page with forty links to danluu.com has "danluu" as its first subject.
     /// The visible label of a link stays — that one is prose.
     private static func stripLinks(_ text: String) -> String {
@@ -94,7 +94,7 @@ enum Keywords {
         return out.replacingOccurrences(of: #"\bhttps?://\S+"#, with: " ", options: .regularExpression)
     }
 
-    /// Words that carry no subject in any sentence. Dropped from a clip's
+    /// Words that carry no subject in any sentence. Dropped from a nut's
     /// keywords *and* from a question: "comment parler aux utilisateurs" is
     /// two words of subject and three of French.
     private static let grammar: Set<String> = [
@@ -124,9 +124,9 @@ enum Keywords {
 
     /// Words every web page carries — cookie banners, navigation, legal
     /// footers — which would otherwise be the most frequent words in the
-    /// folder. Dropped when counting a clip's keywords, and **only** then: in a
+    /// folder. Dropped when counting a nut's keywords, and **only** then: in a
     /// question these are ordinary subjects. Searching "privacy" returned
-    /// nothing at all while a clip titled "Why is privacy so hard?" sat in the
+    /// nothing at all while a nut titled "Why is privacy so hard?" sat in the
     /// folder, because the one list was doing both jobs.
     private static let boilerplate: Set<String> = [
         "cookies", "cookie", "privacy", "policy", "terms", "login", "sign", "signup", "subscribe",

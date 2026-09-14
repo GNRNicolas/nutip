@@ -35,10 +35,10 @@ pointing at the upstream repo.
 | The frontmatter, the file body | `Store.render` and `Store.parse` (keep them symmetrical) |
 | File and folder naming | `Store.add` (`YYYY-MM/YYYY-MM-DD-slug.md`) |
 | INDEX.md layout | `Store.rootIndex` |
-| tags/*.md and monthly pages | `Store.index(title:subtitle:clips:…)` |
+| tags/*.md and monthly pages | `Store.index(title:subtitle:nuts:…)` |
 | Which pages a save rewrites | `Store.regenerateIndexes(months:tags:full:)` |
 | The folder README and AGENTS.md | `Store.writeReadme`, `Store.writeAgents` |
-| How much page text a clip keeps | `Settings.bodyLimit` |
+| How much page text a nut keeps | `Settings.bodyLimit` |
 | Which pasteboard types reveal the source page | `Capture.sourcePage` |
 | HTML → Markdown rules | `Resources/tomarkdown.js` |
 | Palette keys | `Palette.handleEverywhere`, `handleTagMode`, `handleBrowse` |
@@ -60,9 +60,9 @@ pointing at the upstream repo.
 Point a build at a scratch folder without touching your preferences:
 
 ```sh
-NUTIP_DIR=/tmp/clips build/Nutip.app/Contents/MacOS/Nutip add "hello" -t test
-NUTIP_DIR=/tmp/clips build/Nutip.app/Contents/MacOS/Nutip recent
-NUTIP_DIR=/tmp/clips build/Nutip.app/Contents/MacOS/Nutip   # the GUI, same folder
+NUTIP_DIR=/tmp/nuts build/Nutip.app/Contents/MacOS/Nutip add "hello" -t test
+NUTIP_DIR=/tmp/nuts build/Nutip.app/Contents/MacOS/Nutip recent
+NUTIP_DIR=/tmp/nuts build/Nutip.app/Contents/MacOS/Nutip   # the GUI, same folder
 ```
 
 `nutip extract <url>` prints what a page turns into: the fastest way to
@@ -80,7 +80,7 @@ index error lands there with a reason.
 - **A borderless NSPanel gets no key events** until `canBecomeKey` returns
   true (`KeyPanel`). Every "the shortcuts do nothing" bug starts here.
 - **Rounded corners on a blurred panel** need `maskImage`, not `cornerRadius`.
-- **A subview added to an NSScrollView is invisible**: the clip view covers
+- **A subview added to an NSScrollView is invisible**: the nut view covers
   it. The empty-state label lives in the panel, constrained to the scroll view.
 - **`Store.render` and `Store.parse` must stay symmetrical.** `parse` strips
   the H1 and bare URL `render` writes; add a line to one, teach the other
@@ -97,11 +97,11 @@ index error lands there with a reason.
 - **Nothing that runs after a save may read the whole folder.** Index pages
   are written from `Index` rows, and `Index.sync()` only opens files whose
   modification date or size changed. Calling `Store.all()` in a save path
-  puts the folder back to O(everything) per clip.
+  puts the folder back to O(everything) per nut.
 - **An index row has no body** (`bodyLoaded == false`). `Store.save` reloads
   it before writing; if you add another writer, do the same or you will blank
   files.
-- **Adding a column to `clips` means bumping `Index.schema`**, which drops the
+- **Adding a column to `nuts` means bumping `Index.schema`**, which drops the
   database and rebuilds it. There is no migration and there should not be one.
 - **A stored `NSMenuItem` can only belong to one menu.** `buildMenu` removes
   its items from their old menu first; hand `NSMenu` an item that still has

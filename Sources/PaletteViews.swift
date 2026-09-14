@@ -94,8 +94,8 @@ final class TagCell: NSTableCellView {
     }
 }
 
-final class ClipCell: NSTableCellView {
-    static let id = NSUserInterfaceItemIdentifier("clip")
+final class NutCell: NSTableCellView {
+    static let id = NSUserInterfaceItemIdentifier("nut")
     private let title = NSTextField(labelWithString: "")
     private let meta = NSTextField(labelWithString: "")
     /// The passage that matched, with the matched words in bold. Only a search
@@ -104,7 +104,7 @@ final class ClipCell: NSTableCellView {
 
     init() {
         super.init(frame: .zero)
-        identifier = ClipCell.id
+        identifier = NutCell.id
         title.font = .systemFont(ofSize: 14, weight: .medium)
         title.lineBreakMode = .byTruncatingTail
         title.maximumNumberOfLines = 1
@@ -135,16 +135,16 @@ final class ClipCell: NSTableCellView {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    func set(_ clip: Clip) {
-        title.stringValue = clip.title
-        var parts = [Dates.relative(clip.capturedAt)]
-        if !clip.domain.isEmpty { parts.append(clip.domain) } else { parts.append(clip.source) }
-        if !clip.tags.isEmpty { parts.append(clip.tags.map { "#\($0)" }.joined(separator: " ")) }
+    func set(_ nut: Nut) {
+        title.stringValue = nut.title
+        var parts = [Dates.relative(nut.capturedAt)]
+        if !nut.domain.isEmpty { parts.append(nut.domain) } else { parts.append(nut.source) }
+        if !nut.tags.isEmpty { parts.append(nut.tags.map { "#\($0)" }.joined(separator: " ")) }
         var line = parts.joined(separator: " · ")
-        if !clip.why.isEmpty { line += " · \(clip.why)" }
+        if !nut.why.isEmpty { line += " · \(nut.why)" }
         meta.stringValue = line
-        match.attributedStringValue = ClipCell.highlighted(clip.match)
-        match.isHidden = clip.match.isEmpty
+        match.attributedStringValue = NutCell.highlighted(nut.match)
+        match.isHidden = nut.match.isEmpty
     }
 
     /// FTS5 wraps what it matched in two control characters. Between them the

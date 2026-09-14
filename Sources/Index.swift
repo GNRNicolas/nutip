@@ -1,4 +1,4 @@
-// Full-text search over the clips, in SQLite (FTS5), kept in line with the
+// Full-text search over the nuts, in SQLite (FTS5), kept in line with the
 // Markdown files so it can always be thrown away. It is also what the
 // generated INDEX.md and tags/ pages are written from: nothing that runs
 // after a save is allowed to re-read the whole folder.
@@ -11,7 +11,7 @@ enum Index {
     private static var db: OpaquePointer?
     private static let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
     /// Bumped when the columns change: the database is rebuilt instead of migrated.
-    private static let schema: Int32 = 4
+    private static let schema: Int32 = 5
 
     private static var file: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -39,17 +39,17 @@ enum Index {
             return false
         }
         if version() != schema {
-            exec("DROP TABLE IF EXISTS clips; DROP TABLE IF EXISTS fts;")
+            exec("DROP TABLE IF EXISTS nuts; DROP TABLE IF EXISTS fts;")
             exec("PRAGMA user_version = \(schema);")
         }
         exec("""
         PRAGMA journal_mode = WAL;
-        CREATE TABLE IF NOT EXISTS clips (
+        CREATE TABLE IF NOT EXISTS nuts (
             path TEXT PRIMARY KEY, title TEXT, url TEXT, url_key TEXT, domain TEXT, source TEXT,
             captured_at REAL, month TEXT, tags TEXT, tags_key TEXT, why TEXT, mtime REAL, size INTEGER
         );
-        CREATE INDEX IF NOT EXISTS clips_date ON clips (captured_at DESC);
-        CREATE INDEX IF NOT EXISTS clips_url ON clips (url_key);
+        CREATE INDEX IF NOT EXISTS nuts_date ON nuts (captured_at DESC);
+        CREATE INDEX IF NOT EXISTS nuts_url ON nuts (url_key);
         CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(path UNINDEXED, title, tags, why, keywords, body, tokenize='unicode61 remove_diacritics 2');
         """)
         return sync()
@@ -69,14 +69,14 @@ enum Index {
     }
 
     /// Reads only the files that appeared or changed since last time, from
-    /// their modification date and size. A folder of ten thousand clips costs
+    /// their modification date and size. A folder of ten thousand nuts costs
     /// one directory listing, not ten thousand file reads.
     @discardableResult
     private static func sync() -> Bool {
         guard db != nil else { return false }
         let disk = Store.stamps()
         var known: [String: Stamp] = [:]
-        forEachRow("SELECT path, mtime, size FROM clips", []) { stmt in
+        forEachRow("SELECT path, mtime, size FROM nuts", []) { stmt in
             guard let c = sqlite3_column_text(stmt, 0) else { return }
             known[String(cString: c)] = Stamp(modified: sqlite3_column_double(stmt, 1),
                                               size: Int(sqlite3_column_int64(stmt, 2)))
@@ -88,10 +88,10 @@ enum Index {
         for path in gone { remove(path: path) }
         for path in changed {
             remove(path: path)
-            if let clip = try? Store.read(path: path), let stamp = disk[path] { insert(clip, stamp: stamp) }
+            if let nut = try? Store.read(path: path), let stamp = disk[path] { insert(nut, stamp: stamp) }
         }
         exec("COMMIT;")
-        Log.write("index: \(changed.count) read, \(gone.count) gone, \(disk.count) clips")
+        Log.write("index: \(changed.count) read, \(gone.count) gone, \(disk.count) nuts")
         return true
     }
 
@@ -99,51 +99,51 @@ enum Index {
     @discardableResult
     static func rebuild() -> Int {
         guard db != nil else { return 0 }
-        exec("BEGIN; DELETE FROM clips; DELETE FROM fts;")
+        exec("BEGIN; DELETE FROM nuts; DELETE FROM fts;")
         let disk = Store.stamps()
         var n = 0
         for (path, stamp) in disk {
-            if let clip = try? Store.read(path: path) { insert(clip, stamp: stamp); n += 1 }
+            if let nut = try? Store.read(path: path) { insert(nut, stamp: stamp); n += 1 }
         }
         exec("COMMIT;")
         return n
     }
 
-    static func upsert(_ clip: Clip) {
+    static func upsert(_ nut: Nut) {
         guard db != nil else { return }
         exec("BEGIN;")
-        remove(path: clip.path)
-        insert(clip, stamp: clip.fileURL.flatMap(Store.stamp) ?? Stamp(modified: 0, size: 0))
+        remove(path: nut.path)
+        insert(nut, stamp: nut.fileURL.flatMap(Store.stamp) ?? Stamp(modified: 0, size: 0))
         exec("COMMIT;")
     }
 
     static func remove(path: String) {
         guard db != nil else { return }
-        run("DELETE FROM clips WHERE path = ?", [path])
+        run("DELETE FROM nuts WHERE path = ?", [path])
         run("DELETE FROM fts WHERE path = ?", [path])
     }
 
-    private static func insert(_ clip: Clip, stamp: Stamp) {
+    private static func insert(_ nut: Nut, stamp: Stamp) {
         run("""
-            INSERT INTO clips (path, title, url, url_key, domain, source, captured_at, month, tags, tags_key, why, mtime, size)
+            INSERT INTO nuts (path, title, url, url_key, domain, source, captured_at, month, tags, tags_key, why, mtime, size)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
-            [clip.path, clip.title, clip.url ?? "", normalize(clip.url ?? ""), clip.domain, clip.source,
-             clip.capturedAt.timeIntervalSince1970, String(clip.path.prefix(7)),
-             clip.tags.joined(separator: " "), clip.tags.map(\.tagKey).joined(separator: " "),
-             clip.why, stamp.modified, stamp.size])
+            [nut.path, nut.title, nut.url ?? "", normalize(nut.url ?? ""), nut.domain, nut.source,
+             nut.capturedAt.timeIntervalSince1970, String(nut.path.prefix(7)),
+             nut.tags.joined(separator: " "), nut.tags.map(\.tagKey).joined(separator: " "),
+             nut.why, stamp.modified, stamp.size])
         run("INSERT INTO fts (path, title, tags, why, keywords, body) VALUES (?,?,?,?,?,?)",
-            [clip.path, clip.title, clip.tags.joined(separator: " "), clip.why,
-             clip.keywords.joined(separator: " "), String(clip.body.prefix(20_000))])
+            [nut.path, nut.title, nut.tags.joined(separator: " "), nut.why,
+             nut.keywords.joined(separator: " "), String(nut.body.prefix(20_000))])
     }
 
     // MARK: Facets
 
     /// A filter the user picked from a list, never typed from memory: `@` in
     /// the search field offers exactly these. Two of the three kinds are read
-    /// from the clips themselves, so there is no vocabulary to maintain — a
+    /// from the nuts themselves, so there is no vocabulary to maintain — a
     /// domain appears the day it is first saved and disappears with the last
-    /// clip that used it.
+    /// nut that used it.
     struct Facet: Equatable {
         enum Kind: String { case when, domain, kind }
         var kind: Kind
@@ -154,11 +154,11 @@ enum Index {
         var clause: (String, Any?) {
             switch kind {
             case .when:
-                return ("clips.captured_at >= ?", Facet.start(of: value).timeIntervalSince1970)
+                return ("nuts.captured_at >= ?", Facet.start(of: value).timeIntervalSince1970)
             case .domain:
-                return ("clips.domain = ?", value)
+                return ("nuts.domain = ?", value)
             case .kind:
-                return (value == "links" ? "clips.url != ''" : "clips.url = ''", nil)
+                return (value == "links" ? "nuts.url != ''" : "nuts.url = ''", nil)
             }
         }
 
@@ -186,7 +186,7 @@ enum Index {
             Facet(kind: .kind, value: "links", label: "links"),
             Facet(kind: .kind, value: "text", label: "text"),
         ]
-        // A domain saved once is not a filter, it is that one clip: offering
+        // A domain saved once is not a filter, it is that one nut: offering
         // every domain would make the list grow with the folder and be mostly
         // noise. Only the ones that have become a habit are offered — but
         // typing is explicit, so a typed @partial searches all of them.
@@ -197,14 +197,14 @@ enum Index {
         return needle.isEmpty ? out : out.filter { $0.value.tagKey.contains(needle) || $0.label.tagKey.hasPrefix(needle) }
     }
 
-    /// How many clips a domain needs before it is offered as a filter.
+    /// How many nuts a domain needs before it is offered as a filter.
     private static let domainFloor = 3
 
-    /// Domains in use, most saved first. Empty domains (text clips) excluded.
+    /// Domains in use, most saved first. Empty domains (text nuts) excluded.
     static func domains(minimum: Int = 1) -> [(String, Int)] {
         var out: [(String, Int)] = []
         forEachRow("""
-            SELECT domain, COUNT(*) FROM clips WHERE domain != ''
+            SELECT domain, COUNT(*) FROM nuts WHERE domain != ''
             GROUP BY domain HAVING COUNT(*) >= ? ORDER BY COUNT(*) DESC, domain ASC LIMIT 12
             """, [minimum]) { stmt in
             guard let c = sqlite3_column_text(stmt, 0) else { return }
@@ -215,9 +215,9 @@ enum Index {
 
     // MARK: Queries
 
-    /// Newest first. Empty query → the most recent clips. The rows carry no
+    /// Newest first. Empty query → the most recent nuts. The rows carry no
     /// body: nothing here opens a file.
-    static func search(_ query: String, tags: [String] = [], facets: [Facet] = [], limit: Int = 50) -> [Clip] {
+    static func search(_ query: String, tags: [String] = [], facets: [Facet] = [], limit: Int = 50) -> [Nut] {
         guard db != nil else {
             return Array(Store.all().filter { Set(tags).isSubset(of: $0.tags) }.prefix(limit))
         }
@@ -235,7 +235,7 @@ enum Index {
         let q = query.trimmed
         if q.isEmpty, tags.isEmpty {
             let sql = filters.isEmpty ? "" : " WHERE " + filters.joined(separator: " AND ")
-            return clips("SELECT \(columns) FROM clips\(sql) ORDER BY captured_at DESC LIMIT ?",
+            return nuts("SELECT \(columns) FROM nuts\(sql) ORDER BY captured_at DESC LIMIT ?",
                          filterArgs + [limit])
         }
         // A tag is a filter: it is required. A word is a clue: requiring every
@@ -253,17 +253,17 @@ enum Index {
         }
         // A question is not a query: "comment parler aux utilisateurs avant de
         // coder" is two words of subject and five of French. Left in, the five
-        // match nearly every clip and drown the two under the ranking. Dropped
+        // match nearly every nut and drown the two under the ranking. Dropped
         // — unless that is all there was, in which case the user meant them.
         // Asked with nothing but filler ("quelque chose qui n'existe pas"),
         // the query has no subject at all: matching on the filler returns a
-        // handful of unrelated clips, which reads as an answer and is not one.
+        // handful of unrelated nuts, which reads as an answer and is not one.
         words = words.filter { !Keywords.isNoise($0) }.map { "\"\($0)\"*" }
         if !words.isEmpty {
             required.append(words.count == 1 ? words[0] : "(" + words.joined(separator: " OR ") + ")")
         }
         // Nothing left to match on, yet the user did type something: answering
-        // with the most recent clips would pass off a default for a result.
+        // with the most recent nuts would pass off a default for a result.
         guard !required.isEmpty else { return [] }
         // Rank on relevance as soon as there is a word to rank on, weighting the
         // lines a human wrote (title, reason, keywords) above the page text they
@@ -271,43 +271,43 @@ enum Index {
         // was not: searching "privacy" put three pages that mention it once
         // above the one titled "Why is privacy so hard?". Date decides ties, and
         // date alone orders a query that is only tags or filters.
-        let order = words.isEmpty ? "clips.captured_at DESC"
-                                  : "bm25(fts, 0.0, 12.0, 6.0, 10.0, 8.0, 1.0), clips.captured_at DESC"
+        let order = words.isEmpty ? "nuts.captured_at DESC"
+                                  : "bm25(fts, 0.0, 12.0, 6.0, 10.0, 8.0, 1.0), nuts.captured_at DESC"
         // The matched passage, cut by FTS5 around the words that matched, so
-        // the list can show *why* a clip is in it. Body first — that is where
+        // the list can show *why* a nut is in it. Body first — that is where
         // a match is least obvious — falling back to the reason.
         let snippet = "snippet(fts, 5, '\u{2}', '\u{3}', '…', 12)"
-        return clips("""
-            SELECT \(columns), \(snippet) FROM clips JOIN fts ON clips.path = fts.path
+        return nuts("""
+            SELECT \(columns), \(snippet) FROM nuts JOIN fts ON nuts.path = fts.path
             WHERE fts MATCH ?\(whereFilters) ORDER BY \(order) LIMIT ?
             """, [required.joined(separator: " AND ")] + filterArgs + [limit])
     }
 
-    /// The most recent clips, optionally of one tag: what an index page lists.
-    static func recent(tag: String? = nil, limit: Int) -> [Clip] {
+    /// The most recent nuts, optionally of one tag: what an index page lists.
+    static func recent(tag: String? = nil, limit: Int) -> [Nut] {
         guard db != nil else {
             let all = Store.all().filter { tag == nil || $0.tags.containsTag(tag!) }
             return Array(all.prefix(limit))
         }
         if let tag {
-            return clips("""
-                SELECT \(columns) FROM clips WHERE \(Index.hasTag)
+            return nuts("""
+                SELECT \(columns) FROM nuts WHERE \(Index.hasTag)
                 ORDER BY captured_at DESC LIMIT ?
                 """, ["% \(tag.tagKey) %", limit])
         }
-        return clips("SELECT \(columns) FROM clips ORDER BY captured_at DESC LIMIT ?", [limit])
+        return nuts("SELECT \(columns) FROM nuts ORDER BY captured_at DESC LIMIT ?", [limit])
     }
 
-    /// Every clip of one month, oldest first: a monthly index is complete.
-    static func month(_ month: String) -> [Clip] {
+    /// Every nut of one month, oldest first: a monthly index is complete.
+    static func month(_ month: String) -> [Nut] {
         guard db != nil else { return Store.all().filter { $0.path.hasPrefix(month) }.reversed() }
-        return clips("SELECT \(columns) FROM clips WHERE month = ? ORDER BY captured_at ASC", [month])
+        return nuts("SELECT \(columns) FROM nuts WHERE month = ? ORDER BY captured_at ASC", [month])
     }
 
-    /// Months that hold clips, newest first, with how many each holds.
+    /// Months that hold nuts, newest first, with how many each holds.
     static func months() -> [(String, Int)] {
         var out: [(String, Int)] = []
-        forEachRow("SELECT month, COUNT(*) FROM clips GROUP BY month ORDER BY month DESC", []) { stmt in
+        forEachRow("SELECT month, COUNT(*) FROM nuts GROUP BY month ORDER BY month DESC", []) { stmt in
             guard let c = sqlite3_column_text(stmt, 0) else { return }
             out.append((String(cString: c), Int(sqlite3_column_int64(stmt, 1))))
         }
@@ -322,9 +322,9 @@ enum Index {
         var counts: [String: Int] = [:]
         var spellings: [String: [String: Int]] = [:]
         // Grouped in SQL. This runs on every save, and the same handful of tag
-        // combinations recur across thousands of clips: one row per distinct
-        // combination instead of one per clip.
-        forEachRow("SELECT tags, COUNT(*) FROM clips GROUP BY tags", []) { stmt in
+        // combinations recur across thousands of nuts: one row per distinct
+        // combination instead of one per nut.
+        forEachRow("SELECT tags, COUNT(*) FROM nuts GROUP BY tags", []) { stmt in
             guard let c = sqlite3_column_text(stmt, 0) else { return }
             let repeats = Int(sqlite3_column_int64(stmt, 1))
             for raw in String(cString: c).split(separator: " ") {
@@ -341,19 +341,19 @@ enum Index {
             }
     }
 
-    /// How many clips carry any of these tags: what the Settings alert counts
+    /// How many nuts carry any of these tags: what the Settings alert counts
     /// before it lets a tag go.
     static func count(anyOf tags: [String]) -> Int {
         guard db != nil else { return Store.all().filter { $0.tags.contains { tags.containsTag($0) } }.count }
         guard !tags.isEmpty else { return 0 }
         let clause = tags.map { _ in Index.hasTag }.joined(separator: " OR ")
-        return count("SELECT COUNT(*) FROM clips WHERE \(clause)", tags.map { "% \($0.tagKey) %" })
+        return count("SELECT COUNT(*) FROM nuts WHERE \(clause)", tags.map { "% \($0.tagKey) %" })
     }
 
-    /// The clip already saved from this URL, if any (ignoring the fragment).
-    static func existing(url: String) -> Clip? {
+    /// The nut already saved from this URL, if any (ignoring the fragment).
+    static func existing(url: String) -> Nut? {
         guard db != nil else { return Store.all().first { normalize($0.url ?? "") == normalize(url) } }
-        return clips("SELECT \(columns) FROM clips WHERE url_key = ? AND url_key != '' ORDER BY captured_at DESC LIMIT 1",
+        return nuts("SELECT \(columns) FROM nuts WHERE url_key = ? AND url_key != '' ORDER BY captured_at DESC LIMIT 1",
                      [normalize(url)]).first
     }
 
@@ -366,23 +366,23 @@ enum Index {
 
     // MARK: SQLite plumbing
 
-    /// One spelling of "this clip carries this tag", shared by everything that
+    /// One spelling of "this nut carries this tag", shared by everything that
     /// asks: two copies would drift apart in silence the day the separator or
     /// the folding changes.
     static let hasTag = "(' ' || tags_key || ' ') LIKE ?"
 
-    private static let columns = "clips.path, clips.title, clips.url, clips.source, clips.captured_at, clips.tags, clips.why"
+    private static let columns = "nuts.path, nuts.title, nuts.url, nuts.source, nuts.captured_at, nuts.tags, nuts.why"
 
-    /// Rows as clips without their body. `Store.save` reloads it before
+    /// Rows as nuts without their body. `Store.save` reloads it before
     /// writing, so an index row can never truncate a file.
-    private static func clips(_ sql: String, _ args: [Any]) -> [Clip] {
-        var out: [Clip] = []
+    private static func nuts(_ sql: String, _ args: [Any]) -> [Nut] {
+        var out: [Nut] = []
         forEachRow(sql, args) { stmt in
             func text(_ i: Int32) -> String {
                 sqlite3_column_text(stmt, i).map { String(cString: $0) } ?? ""
             }
             let url = text(2)
-            out.append(Clip(path: text(0), title: text(1), url: url.isEmpty ? nil : url, source: text(3),
+            out.append(Nut(path: text(0), title: text(1), url: url.isEmpty ? nil : url, source: text(3),
                             capturedAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 4)),
                             tags: text(5).split(separator: " ").map(String.init), why: text(6),
                             match: text(7), body: "", bodyLoaded: false))

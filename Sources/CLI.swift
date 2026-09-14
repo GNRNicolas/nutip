@@ -6,22 +6,22 @@ import Foundation
 enum CLI {
     static let usage = """
     Usage:
-      nutip recent [N] [--json]          the N most recent clips (default 20)
+      nutip recent [N] [--json]          the N most recent nuts (default 20)
       nutip search <query> [--json]      full-text search; #tag restricts to a tag
       nutip add <url|text> [--tag t]... [--why "..."] [--title "..."] [--extract]
-                                         save a clip; --extract also reads the page
-      nutip rm <path>                    move a clip to the Trash and update the indexes
-      nutip extract <url>                print a page as Markdown (what a clip gets)
+                                         save a nut; --extract also reads the page
+      nutip rm <path>                    move a nut to the Trash and update the indexes
+      nutip extract <url>                print a page as Markdown (what a nut gets)
       nutip tags                         the configured tags
       nutip tags add <tag>...            add tags to the palette (also: rm)
-      nutip folder [path]                the clips folder; with a path, move to it
+      nutip folder [path]                the nuts folder; with a path, move to it
       nutip reindex                      rebuild INDEX.md, tags/*.md and the search index
       nutip doctor                       permissions, folder, hotkey
-      nutip filters                      every @ filter there is, read from your clips
-      nutip enrich [--dry-run]           give keywords to the clips that have none
+      nutip filters                      every @ filter there is, read from your nuts
+      nutip enrich [--dry-run]           give keywords to the nuts that have none
       nutip --help
 
-    NUTIP_DIR=<folder> overrides the clips folder for one command.
+    NUTIP_DIR=<folder> overrides the nuts folder for one command.
     """
 
     /// True when the arguments were a CLI command and the process should exit.
@@ -50,7 +50,7 @@ enum CLI {
             let started = Date()
             let n = Index.rebuild()
             Store.regenerateIndexes(full: true)
-            print("reindexed \(n) clip\(n == 1 ? "" : "s") in \(String(format: "%.1f", Date().timeIntervalSince(started)))s")
+            print("reindexed \(n) nut\(n == 1 ? "" : "s") in \(String(format: "%.1f", Date().timeIntervalSince(started)))s")
         case "recent":
             Index.open()
             let n = rest.first.flatMap(Int.init) ?? 20
@@ -80,7 +80,7 @@ enum CLI {
         case "add":
             add(rest)
         case "rm", "remove", "delete":
-            guard let path = rest.first else { fail("rm needs the path of a clip") }
+            guard let path = rest.first else { fail("rm needs the path of a nut") }
             remove(path)
         case "extract":
             guard let url = rest.first.flatMap(URL.init(string:)), url.absoluteString.isURL else { fail("extract needs a URL") }
@@ -92,11 +92,11 @@ enum CLI {
     }
 
     /// An empty result is a dead end for an agent that has no other idea, and
-    /// "nothing was saved about that" is usually wrong: the clip is there, in
+    /// "nothing was saved about that" is usually wrong: the nut is there, in
     /// the language the page was written in. Said on stderr, so --json output
     /// stays machine-readable.
     private static func suggest() {
-        fflush(stdout)   // or the hint lands above the "(no clips)" it explains
+        fflush(stdout)   // or the hint lands above the "(no nuts)" it explains
         let tags = Index.tagCounts().prefix(12).map { "\($0.0) (\($0.1))" }
         FileHandle.standardError.write(Data("""
 
@@ -104,31 +104,31 @@ enum CLI {
           · ask again in the language the page was probably written in \
         (a French question rarely matches an English article)
           · nutip tags, then the page of the likeliest tag
-          · nutip recent 200, or INDEX.md at the root: one line per clip, to read and judge
+          · nutip recent 200, or INDEX.md at the root: one line per nut, to read and judge
         tags in use: \(tags.isEmpty ? "(none)" : tags.joined(separator: ", "))
 
         """.replacingOccurrences(of: "        ", with: "").utf8))
     }
 
-    /// Gives keywords to the clips that have none: the ones saved before this
+    /// Gives keywords to the nuts that have none: the ones saved before this
     /// existed, and the ones whose page arrived after the file was written.
-    /// Counted locally from the clip's own text — nothing is sent anywhere, and
+    /// Counted locally from the nut's own text — nothing is sent anywhere, and
     /// a `keywords:` line already in a file is never touched.
     private static func enrich(dry: Bool) {
         Index.open()
         var done = 0
-        for clip in Store.all() where clip.keywords.isEmpty {
-            let words = Keywords.derive(title: clip.title, why: clip.why, body: clip.body, tags: clip.tags)
+        for nut in Store.all() where nut.keywords.isEmpty {
+            let words = Keywords.derive(title: nut.title, why: nut.why, body: nut.body, tags: nut.tags)
             guard !words.isEmpty else { continue }
             done += 1
-            print("\(clip.path)\n  \(words.joined(separator: ", "))")
+            print("\(nut.path)\n  \(words.joined(separator: ", "))")
             if dry { continue }
-            var updated = clip
+            var updated = nut
             updated.keywords = words
-            do { try Store.save(updated) } catch { fail("could not write \(clip.path): \(error.localizedDescription)") }
+            do { try Store.save(updated) } catch { fail("could not write \(nut.path): \(error.localizedDescription)") }
         }
-        print(done == 0 ? "nothing to enrich: every clip already has keywords"
-                        : "\(done) clip\(done == 1 ? "" : "s")\(dry ? " would be enriched (--dry-run)" : " enriched")")
+        print(done == 0 ? "nothing to enrich: every nut already has keywords"
+                        : "\(done) nut\(done == 1 ? "" : "s")\(dry ? " would be enriched (--dry-run)" : " enriched")")
     }
 
     /// `nutip folder` prints it, `nutip folder <path>` moves to it. An agent
@@ -160,7 +160,7 @@ enum CLI {
     }
 
     /// `nutip tags` lists them, `nutip tags add|rm <tag>...` edits the list the
-    /// palette offers. Existing clips keep whatever they were tagged with.
+    /// palette offers. Existing nuts keep whatever they were tagged with.
     private static func tags(_ rest: [String]) {
         guard let verb = rest.first else {
             Settings.tags.forEach { print($0) }
@@ -213,7 +213,7 @@ enum CLI {
         var words: [String] = []
         /// Arguments that look like flags but are not any of ours. Silently
         /// folded into the text, a mistyped or badly quoted flag ended up
-        /// *inside* the saved URL — a clip that looks right and whose link is
+        /// *inside* the saved URL — a nut that looks right and whose link is
         /// dead. Better to refuse the command.
         var unknown: [String] = []
 
@@ -257,13 +257,13 @@ enum CLI {
         }
         do {
             let fallbackTitle = isURL ? (URL(string: text)?.domain ?? text) : text.excerpt(70)
-            let clip = try Store.add(title: options.title.isEmpty ? fallbackTitle : options.title,
+            let nut = try Store.add(title: options.title.isEmpty ? fallbackTitle : options.title,
                                      url: isURL ? text : nil, source: "CLI",
                                      tags: options.tags, why: options.why, body: isURL ? "" : text)
             if options.extractPage, isURL, let url = URL(string: text) {
-                readPage(url, into: clip, keepTitle: !options.title.isEmpty)
+                readPage(url, into: nut, keepTitle: !options.title.isEmpty)
             }
-            print(clip.fileURL?.path ?? clip.path)
+            print(nut.fileURL?.path ?? nut.path)
         } catch {
             fail(error.localizedDescription)
         }
@@ -271,7 +271,7 @@ enum CLI {
 
     /// The GUI extracts in the background after the palette closes; a command
     /// has nowhere to hide it, so this is opt-in and blocking.
-    private static func readPage(_ url: URL, into clip: Clip, keepTitle: Bool) {
+    private static func readPage(_ url: URL, into nut: Nut, keepTitle: Bool) {
         guard let page = page(at: url) else {
             warn("saved, but could not read the page")
             return
@@ -281,16 +281,16 @@ enum CLI {
                  + "Only its title and link are searchable — a -w reason would help.")
         }
         do {
-            try Store.complete(clip, title: keepTitle ? nil : page.title.trimmed,
+            try Store.complete(nut, title: keepTitle ? nil : page.title.trimmed,
                                byline: page.byline, markdown: page.markdown)
         } catch {
-            // Used to be three silent `try?`: the clip stayed empty and the
+            // Used to be three silent `try?`: the nut stayed empty and the
             // command still exited 0, which is the worst of both.
             warn("saved, but could not write the page text: \(error.localizedDescription)")
         }
     }
 
-    /// Trashes a clip and brings the indexes back in line. The path may be
+    /// Trashes a nut and brings the indexes back in line. The path may be
     /// the one printed by `search` (2026-09/…md) or an absolute one.
     private static func remove(_ path: String) {
         Index.open()
@@ -298,9 +298,9 @@ enum CLI {
         if let root = Settings.folder?.path, path.hasPrefix(root) {
             relative = String(path.dropFirst(root.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         }
-        guard let clip = try? Store.read(path: relative) else { fail("no clip at \(path) (inside \(Settings.folder?.path ?? "the folder"))") }
+        guard let nut = try? Store.read(path: relative) else { fail("no nut at \(path) (inside \(Settings.folder?.path ?? "the folder"))") }
         do {
-            try Store.delete(clip)
+            try Store.delete(nut)
             print("trashed \(relative)")
         } catch {
             fail(error.localizedDescription)
@@ -329,15 +329,15 @@ enum CLI {
         return out
     }
 
-    private static func emit(_ clips: [Clip], json: Bool) {
+    private static func emit(_ nuts: [Nut], json: Bool) {
         if json {
-            let rows = clips.map { c -> [String: Any] in
+            let rows = nuts.map { c -> [String: Any] in
                 // `file` is absolute on purpose: an agent reads it without
                 // having to know where the folder is.
                 ["path": c.path, "file": c.fileURL?.path ?? c.path, "title": c.title, "url": c.url ?? "",
                  "source": c.source, "captured_at": Dates.iso.string(from: c.capturedAt),
                  "tags": c.tags, "why": c.why,
-                 // Why this clip is in the list: the passage that matched,
+                 // Why this nut is in the list: the passage that matched,
                  // cut around the words. Lets an agent judge a row without
                  // opening the file.
                  "match": c.match.plainMatch]
@@ -346,7 +346,7 @@ enum CLI {
                let s = String(data: data, encoding: .utf8) { print(s) }
             return
         }
-        for c in clips {
+        for c in nuts {
             var line = "\(Dates.day(c.capturedAt))  \(c.title)"
             if !c.tags.isEmpty { line += "  " + c.tags.map { "#\($0)" }.joined(separator: " ") }
             print(line)
@@ -355,7 +355,7 @@ enum CLI {
             if !c.match.isEmpty { print("            ~ \(c.match.plainMatch)") }
             print("            \(c.path)")
         }
-        if clips.isEmpty { print("(no clips)") }
+        if nuts.isEmpty { print("(no nuts)") }
     }
 
     /// Everything Nutip says that is not a result goes here: prefixed, and

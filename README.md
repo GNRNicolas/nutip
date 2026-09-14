@@ -5,8 +5,12 @@
 <h1 align="center">Nutip</h1>
 
 Save anything as Markdown, for you and your AI. Copy something, press a key,
-pick a tag, done. Nutip writes one `.md` file per clip into a folder you own,
-and keeps an index an AI agent can read in one go.
+pick a tag, done.
+
+The things you keep are **nuts**: one `.md` file each, stashed in a folder you
+own. A squirrel buries more than it can remember — the difference is that this
+folder is written so an AI can find them again, and tell you why you kept each
+one.
 
 No account, no permission to grant, no database you cannot open, no AI
 inside. The folder is the product.
@@ -43,8 +47,8 @@ and it asks for no macOS permission, so nothing should prompt me.
    me where if you are unsure.
 2. Run ./build.sh --install in it. It needs the Xcode command line tools: if they
    are missing, tell me to run xcode-select --install rather than guessing.
-3. Choose where my clips should live, and this matters more than the rest: one
-   Markdown file per clip goes there, and that folder is what you will read later
+3. Choose where my nuts should live, and this matters more than the rest: one
+   Markdown file per nut goes there, and that folder is what you will read later
    to answer me. Look at what I already have — a notes repo, an Obsidian vault, a
    memory folder — propose one place, and once I agree:
       nutip folder <path>
@@ -54,7 +58,7 @@ and it asks for no macOS permission, so nothing should prompt me.
 5. If I use Claude Code, link the skill that ships with Nutip, with an absolute
    path to the clone:
       mkdir -p ~/.claude/skills && ln -sfn <clone>/skills/nutip ~/.claude/skills/nutip
-6. Run `nutip doctor` and tell me in three lines: where my clips will be saved,
+6. Run `nutip doctor` and tell me in three lines: where my nuts will be saved,
    what the hotkey is, and that the gesture is copy with ⌘C, then the hotkey. Say
    that the first launch window is already filled in and I just have to confirm.
 
@@ -67,7 +71,7 @@ On first launch Nutip asks for a folder and your first tags, and then lives in
 the menu bar.
 
 The repo ships a [`nutip` skill](skills/nutip/SKILL.md) so an agent knows how
-to search your clips, save into them and keep them tidy. The clips folder also
+to search your nuts, save into them and keep them tidy. The nuts folder also
 gets its own `AGENTS.md`, which most agents pick up without being told.
 
 ## Use
@@ -75,7 +79,7 @@ gets its own `AGENTS.md`, which most agents pick up without being told.
 Copy anything with **⌘C**, then press **⌥⌘S** (changeable). The palette opens
 over whatever you are doing:
 
-- Copied text becomes a text clip. A copied link becomes a link clip. Text
+- Copied text becomes a text nut. A copied link becomes a link nut. Text
   copied from a web page in Safari, Chrome, Arc, Brave or Edge keeps the
   page it came from: the browser puts it on the clipboard, Nutip reads it.
 - **↑↓** move through your tags, **1–9** (or **⌘1–9**) tick them, several are
@@ -85,13 +89,13 @@ over whatever you are doing:
   footer always says which of these is about to happen.
 - The palette closes at once; if there is a page, its readable text is
   fetched in the background and added to the file a couple of seconds later.
-- A video, a paywall or an app has no readable text. The clip still gets the
+- A video, a paywall or an app has no readable text. The nut still gets the
   page's real title and says it has no text, instead of being filed under the
   domain it came from.
 
 A small toast confirms, with **Undo** (⌘Z while it shows). If you saved
 without a reason, it also offers **Why? (⌘Y)** — the note field, already open,
-on the clip you just saved. It is the one thing nothing can reconstruct later,
+on the nut you just saved. It is the one thing nothing can reconstruct later,
 and the second after saving is when it costs the least. Nothing to name,
 nothing to file.
 
@@ -101,23 +105,23 @@ matched, with your words in bold, so you pick without opening anything.
 
 - **`#`** filters by tag, **`@`** by anything else: `@today`, `@week`,
   `@month`, `@year`, `@links`, `@text`, or a domain — `@github.com`. The list
-  is read from your clips, so there is nothing to configure and nothing to
+  is read from your nuts, so there is nothing to configure and nothing to
   maintain. A domain is offered once you have saved it three times — before
-  that it is one clip, not a filter — but typing `@gith…` finds it anyway.
+  that it is one nut, not a filter — but typing `@gith…` finds it anyway.
 - **tab** takes the highlighted suggestion, **⌫** on an empty field drops the
   last filter.
 - **↩** opens the file in your editor, **⌘↩** opens the original link,
   **⌘E** edits tags and note, **⌘D** deletes.
 
 <p align="center">
-  <img src="docs/browse.png" width="760" alt="Browse mode: a #reading filter chip in the search field and the list of clips below">
+  <img src="docs/browse.png" width="760" alt="Browse mode: a #reading filter chip in the search field and the list of nuts below">
 </p>
 
 ### The folder
 
 ```
 Nutip/
-  INDEX.md               counts, every tag, every month, the 500 most recent clips
+  INDEX.md               counts, every tag, every month, the 500 most recent nuts
   AGENTS.md              the same folder, explained to an AI agent
   README.md              the same, for a human
   tags/reading.md        one tag, newest first
@@ -126,11 +130,11 @@ Nutip/
     2026-09-13-title-of-the-thing.md
 ```
 
-Ten thousand clips change none of that: `INDEX.md` stays one read, the monthly
-pages hold the rest, and saving a clip rewrites only the pages that mention
+Ten thousand nuts change none of that: `INDEX.md` stays one read, the monthly
+pages hold the rest, and saving a nut rewrites only the pages that mention
 it.
 
-One clip:
+One nut:
 
 ```markdown
 ---
@@ -165,7 +169,7 @@ read by one:
 - `AGENTS.md` is picked up on its own by most coding agents. It says what the
   folder is, what to read first, and what never to edit.
 - `INDEX.md` is one read whatever the size: the totals, every tag and every
-  month as links, then the 500 most recent clips, each with its date, source,
+  month as links, then the 500 most recent nuts, each with its date, source,
   tags and `why`. An agent picks the three files worth opening instead of
   reading a thousand.
 - `why` is the one thing an agent cannot infer: the reason a human kept it.
@@ -176,18 +180,18 @@ read by one:
 - [`skills/nutip`](skills/nutip/SKILL.md) is a Claude Code skill: symlink it
   into `~/.claude/skills/` and your agent knows the commands, the tag
   discipline and what it must never overwrite.
-- A clip file is capped at 40 000 characters of extracted page text, so
+- A nut file is capped at 40 000 characters of extracted page text, so
   opening one never costs an agent its context window. A long article lands
-  right on that cap; most clips are a few kilobytes.
-- `keywords:` is counted from the clip's own text — frequency and a stop list,
+  right on that cap; most nuts are a few kilobytes.
+- `keywords:` is counted from the nut's own text — frequency and a stop list,
   no model, no network, no API key — and indexed alongside it, so a question
   that paraphrases the page still matches. Correct one by hand and it stays.
 - Search is forgiving on purpose: ask it a whole question. The words are OR'd,
   filler words are dropped, the best match comes first, and only a `#tag` is
   required.
 - It still matches words, not meaning, so **the language matters**. Measured on
-  a 258-clip corpus of real articles, mostly English: 4 French questions out of
-  12 found their clip; the same 12, re-asked in English, found it every time. An
+  a 258-nut corpus of real articles, mostly English: 4 French questions out of
+  12 found their nut; the same 12, re-asked in English, found it every time. An
   agent that re-asks in the language the page was written in turns 4/12 into
   12/12, and `nutip search` says so itself when it comes back empty.
 
@@ -196,19 +200,19 @@ read by one:
 The same binary is the CLI (`./build.sh --install` links it as `nutip`):
 
 ```sh
-nutip recent 10                     # newest clips
+nutip recent 10                     # newest nuts
 nutip search "pricing #competitors" # full-text, #tag filters
 nutip search "@week postgres"       # @ filters: a span of time, links/text, a domain
-nutip filters                       # every @ filter available, read from your clips
+nutip filters                       # every @ filter available, read from your nuts
 nutip search claude --json          # for scripts and agents, with an absolute file path
 nutip add https://example.com -t reading -w "the pricing table"
-nutip add https://example.com -x    # same, and read the page into the clip
-nutip rm 2026-09/2026-09-13-thing.md   # move a clip to the Trash, indexes updated
+nutip add https://example.com -x    # same, and read the page into the nut
+nutip rm 2026-09/2026-09-13-thing.md   # move a nut to the Trash, indexes updated
 nutip extract https://example.com   # what a page becomes, on stdout
 nutip reindex                       # rebuild INDEX.md, tags/ and the search index
 nutip doctor                        # folder, hotkey, tags, where the log is
-nutip enrich                        # give keywords to the clips that have none (--dry-run to preview)
-nutip folder ~/notes/clips          # move the clips folder; no argument prints it
+nutip enrich                        # give keywords to the nuts that have none (--dry-run to preview)
+nutip folder ~/notes/nuts          # move the nuts folder; no argument prints it
 nutip tags add veille               # what the palette offers; nutip tags rm to drop one
 ```
 

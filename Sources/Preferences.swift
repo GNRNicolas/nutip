@@ -76,7 +76,7 @@ final class Preferences: NSObject, NSWindowDelegate, NSTableViewDataSource, NSTa
     private func makeForm() -> NSGridView {
         let grid = NSGridView(views: [
             [label("Folder:"), folderRow()],
-            [NSGridCell.emptyContentView, hint("One Markdown file per clip, plus INDEX.md. Your Obsidian vault, a Git repo, iCloud Drive: any folder.")],
+            [NSGridCell.emptyContentView, hint("One Markdown file per nut, plus INDEX.md. Your Obsidian vault, a Git repo, iCloud Drive: any folder.")],
             [label("Tags:"), tagsBox()],
             [NSGridCell.emptyContentView, tagStatus],
             [label("How it works:"), howItWorks()],
@@ -325,8 +325,8 @@ final class Preferences: NSObject, NSWindowDelegate, NSTableViewDataSource, NSTa
         let used = Index.count(anyOf: removed)
         let names = removed.map { "#\($0)" }.joined(separator: " ")
         tagStatus.stringValue = used == 0
-            ? "Removed \(names). No clip used it. ⌘Z to undo."
-            : "Removed \(names). The \(used) clip\(used == 1 ? "" : "s") already tagged keep it in their files. ⌘Z to undo."
+            ? "Removed \(names). No nut used it. ⌘Z to undo."
+            : "Removed \(names). The \(used) nut\(used == 1 ? "" : "s") already tagged keep it in their files. ⌘Z to undo."
     }
 
     @objc private func renameSelectedTag() {

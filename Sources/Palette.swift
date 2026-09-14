@@ -1,20 +1,20 @@
 // The floating palette: a non-activating panel that appears over whatever the
 // user is doing, takes a few keystrokes, and gets out of the way. Three
 // modes share one window: capturing something new, editing an existing
-// clip's tags and note, and browsing/searching what was saved.
+// nut's tags and note, and browsing/searching what was saved.
 import AppKit
 
 
 enum PaletteMode {
     case capture(CaptureContext)
-    case edit(Clip)
+    case edit(Nut)
     case browse
 }
 
 protocol PaletteDelegate: AnyObject {
     func palette(_ palette: Palette, didCapture context: CaptureContext, tags: [String], why: String)
-    func palette(_ palette: Palette, didEdit clip: Clip)
-    func palette(_ palette: Palette, didDelete clip: Clip)
+    func palette(_ palette: Palette, didEdit nut: Nut)
+    func palette(_ palette: Palette, didDelete nut: Nut)
     func paletteWantsSettings(_ palette: Palette)
 }
 
@@ -38,7 +38,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     /// Ticked tags, held as keys so `Reading` in Settings and `reading` in a
     /// file are the same tick.
     private var checked = Set<String>()
-    private var results: [Clip] = []
+    private var results: [Nut] = []
     /// Browse: tags pinned as blue chips before the field, and the tag
     /// suggestions shown while the user types `#…`.
     private var activeTags: [String] = []
@@ -61,23 +61,23 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     }
     private let chips = NSStackView()
     /// Separator above the why field. It doubles the header separator when
-    /// the clip block between them is hidden, so it follows the block.
+    /// the nut block between them is hidden, so it follows the block.
     private let fieldLine = NSBox()
     private let logo = NSImageView()
-    private let clipTitle = NSTextField(labelWithString: "")
-    private let clipMeta = NSTextField(labelWithString: "")
-    private let clipBlock = NSStackView()
+    private let nutTitle = NSTextField(labelWithString: "")
+    private let nutMeta = NSTextField(labelWithString: "")
+    private let nutBlock = NSStackView()
     /// Gap between the chips and the field: 8 pt with chips, otherwise pulled
     /// back so the field's 2 pt cell inset lines the text up with the labels.
     private var fieldGap: NSLayoutConstraint!
-    private var existing: Clip?
+    private var existing: Nut?
     /// The capture that was open when Browse was entered, so esc brings it back.
     private var cameFrom: CaptureContext?
 
     private static let width: CGFloat = 720
     private static let pad: CGFloat = 24
     private static let tagRowHeight: CGFloat = 30
-    private static let clipRowHeight: CGFloat = 60
+    private static let nutRowHeight: CGFloat = 60
     private static let matchRowHeight: CGFloat = 78
     private static let maxRows = 8
     /// Key codes of the digit row, 1 to 9, so tags answer to the physical key
@@ -140,10 +140,10 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         titleLabel.font = .systemFont(ofSize: 16, weight: .semibold)
         subtitleLabel.font = .systemFont(ofSize: 12)
         subtitleLabel.textColor = .secondaryLabelColor
-        clipTitle.font = .systemFont(ofSize: 14, weight: .semibold)
-        clipMeta.font = .systemFont(ofSize: 12)
-        clipMeta.textColor = .secondaryLabelColor
-        for label in [titleLabel, subtitleLabel, clipTitle, clipMeta] {
+        nutTitle.font = .systemFont(ofSize: 14, weight: .semibold)
+        nutMeta.font = .systemFont(ofSize: 12)
+        nutMeta.textColor = .secondaryLabelColor
+        for label in [titleLabel, subtitleLabel, nutTitle, nutMeta] {
             label.lineBreakMode = .byTruncatingTail
             label.maximumNumberOfLines = 1
         }
@@ -230,18 +230,18 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     }
 
     /// What is about to be saved: title, then source, link or warning.
-    private func makeClipBlock() -> NSStackView {
-        clipBlock.setViews([clipTitle, clipMeta], in: .leading)
-        clipBlock.orientation = .vertical
-        clipBlock.alignment = .leading
-        clipBlock.spacing = 2
-        clipBlock.edgeInsets = NSEdgeInsets(top: 10, left: Palette.pad, bottom: 10, right: Palette.pad)
+    private func makeNutBlock() -> NSStackView {
+        nutBlock.setViews([nutTitle, nutMeta], in: .leading)
+        nutBlock.orientation = .vertical
+        nutBlock.alignment = .leading
+        nutBlock.spacing = 2
+        nutBlock.edgeInsets = NSEdgeInsets(top: 10, left: Palette.pad, bottom: 10, right: Palette.pad)
         // A long title must give way, not widen the panel: low resistance, hard right edge.
-        for label in [clipTitle, clipMeta] {
+        for label in [nutTitle, nutMeta] {
             label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-            label.trailingAnchor.constraint(equalTo: clipBlock.trailingAnchor, constant: -Palette.pad).isActive = true
+            label.trailingAnchor.constraint(equalTo: nutBlock.trailingAnchor, constant: -Palette.pad).isActive = true
         }
-        return clipBlock
+        return nutBlock
     }
 
     /// The note in a capture, the search field in browse, with the pinned
@@ -283,18 +283,18 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         return footer
     }
 
-    /// One fixed-width column: header, clip, field, list, footer, separated by
+    /// One fixed-width column: header, nut, field, list, footer, separated by
     /// hairlines. Every row is pinned to the panel width so nothing reflows.
     private func assemble(in background: NSVisualEffectView) {
         let header = makeHeader()
-        let clip = makeClipBlock()
+        let nut = makeNutBlock()
         let fieldBox = makeFieldBox()
         let footer = makeFooter()
         let topLine = separatorLine()
         let line = separatorLine()
         fieldLine.boxType = .separator
 
-        let stack = NSStackView(views: [header, topLine, clip, fieldLine, fieldBox, line, scroll, footer])
+        let stack = NSStackView(views: [header, topLine, nut, fieldLine, fieldBox, line, scroll, footer])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 0
@@ -306,7 +306,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             stack.topAnchor.constraint(equalTo: background.topAnchor),
             stack.bottomAnchor.constraint(equalTo: background.bottomAnchor),
         ])
-        for row in [header, topLine, clip, fieldLine, fieldBox, line, scroll, footer] {
+        for row in [header, topLine, nut, fieldLine, fieldBox, line, scroll, footer] {
             row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
         scrollHeight = scroll.heightAnchor.constraint(equalToConstant: 200)
@@ -341,7 +341,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     var isVisible: Bool { panel.isVisible }
 
     /// `focusingNote` puts the caret straight in the reason field. Used by the
-    /// toast's "Why?": the clip is already saved and the only thing left to do
+    /// toast's "Why?": the nut is already saved and the only thing left to do
     /// is type the sentence that was skipped.
     func show(_ mode: PaletteMode, focusingNote: Bool = false) {
         if case .capture(let ctx) = self.mode, case .browse = mode, panel.isVisible { cameFrom = ctx }
@@ -350,7 +350,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         resetChrome()
         switch mode {
         case .capture(let ctx): showCapture(ctx)
-        case .edit(let clip): showEdit(clip)
+        case .edit(let nut): showEdit(nut)
         case .browse: showBrowse()
         }
         present()
@@ -364,7 +364,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         titleLabel.stringValue = "Nutip"
         subtitleLabel.textColor = .secondaryLabelColor
         subtitleLabel.stringValue = Settings.folder?.path.replacingOccurrences(of: NSHomeDirectory(), with: "~") ?? ""
-        clipBlock.isHidden = false
+        nutBlock.isHidden = false
         fieldLine.isHidden = false
         // Leaving browse: the pinned #tag chips belong to the search field,
         // not to the note, and there is no way to remove them from here.
@@ -378,27 +378,27 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private func showCapture(_ ctx: CaptureContext) {
         tags = Settings.tags
         checked = []
-        clipTitle.stringValue = ctx.suggestedTitle
+        nutTitle.stringValue = ctx.suggestedTitle
         var sub = ctx.source
         if let url = ctx.url { sub += " · \(url)" }
         else if !ctx.selection.isEmpty { sub += " · \(ctx.selection.excerpt(90))" }
         if ctx.isEmpty {
-            clipTitle.stringValue = "Nothing copied"
+            nutTitle.stringValue = "Nothing copied"
             sub = "Copy something with ⌘C, then press the hotkey again. ⌘F searches what you saved."
-            clipMeta.textColor = .secondaryLabelColor
+            nutMeta.textColor = .secondaryLabelColor
         } else if ctx.isStale {
-            sub = "Same clipboard as your last clip. Copy something new, or save it again."
-            clipMeta.textColor = .systemOrange
+            sub = "Same clipboard as your last nut. Copy something new, or save it again."
+            nutMeta.textColor = .systemOrange
         } else if let url = ctx.url, let dup = Index.existing(url: url) {
             existing = dup
             sub = "Already saved \(Dates.relative(dup.capturedAt))"
                 + (dup.tags.isEmpty ? "" : " · " + dup.tags.map { "#\($0)" }.joined(separator: " "))
                 + " · ⌘O opens it"
-            clipMeta.textColor = .systemOrange
+            nutMeta.textColor = .systemOrange
         } else {
-            clipMeta.textColor = .secondaryLabelColor
+            nutMeta.textColor = .secondaryLabelColor
         }
-        clipMeta.stringValue = sub
+        nutMeta.stringValue = sub
         field.stringValue = ""
         field.placeholderString = "Why are you saving this? (optional, press ←)"
         showTagHints()
@@ -406,20 +406,20 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
                     ("Save", "→", #selector(confirmPressed), true)])
     }
 
-    private func showEdit(_ clip: Clip) {
-        tags = (Settings.tags + clip.tags).uniquedTags()
-        checked = Set(clip.tags.map(\.tagKey))
-        clipTitle.stringValue = clip.title
-        clipMeta.textColor = .secondaryLabelColor
-        clipMeta.stringValue = "Editing · \(clip.source) · \(Dates.relative(clip.capturedAt))"
-        field.stringValue = clip.why
+    private func showEdit(_ nut: Nut) {
+        tags = (Settings.tags + nut.tags).uniquedTags()
+        checked = Set(nut.tags.map(\.tagKey))
+        nutTitle.stringValue = nut.title
+        nutMeta.textColor = .secondaryLabelColor
+        nutMeta.stringValue = "Editing · \(nut.source) · \(Dates.relative(nut.capturedAt))"
+        field.stringValue = nut.why
         field.placeholderString = "Why did you save this? (optional)"
         showTagHints()
         setButtons([("Back", "esc", #selector(cancelPressed), false), ("Save", "→", #selector(confirmPressed), true)])
     }
 
     private func showBrowse() {
-        clipBlock.isHidden = true
+        nutBlock.isHidden = true
         fieldLine.isHidden = true
         field.stringValue = ""
         renderChips()   // sets the placeholder, with or without chips
@@ -489,8 +489,8 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         }
     }
     @objc private func browsePressed() { show(.browse) }
-    @objc private func editPressed() { if let clip = selectedClip { show(.edit(clip)) } }
-    @objc private func deletePressed() { if let clip = selectedClip { confirmDelete(clip) } }
+    @objc private func editPressed() { if let nut = selectedClip { show(.edit(nut)) } }
+    @objc private func deletePressed() { if let nut = selectedClip { confirmDelete(nut) } }
 
     func hide() {
         removeMonitor()
@@ -503,11 +503,11 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     /// while it is up: a list that grows or shrinks must not move the header.
     private var anchorTop: CGFloat?
 
-    /// How many clip rows fit. Browse is a list: it should use the screen it
+    /// How many nut rows fit. Browse is a list: it should use the screen it
     /// is on, not a number picked for a laptop. Everything but the list —
     /// header, field, chips, buttons — is about 260pt, and the panel stops at
     /// three quarters of the usable height so it never runs off the bottom.
-    private func maxClipRows(_ rowHeight: CGFloat) -> Int {
+    private func maxNutRows(_ rowHeight: CGFloat) -> Int {
         let screen = (panel.screen ?? NSScreen.main ?? NSScreen.screens[0]).visibleFrame.height
         return max(3, Int((screen * 0.75 - 260) / rowHeight))
     }
@@ -519,17 +519,17 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         } else if case .browse = mode {
             empty.stringValue = field.stringValue.trimmed.isEmpty && activeFacets.isEmpty && activeTags.isEmpty
                 ? "Nothing saved yet. Copy something, then press \(Hotkey.current.label)."
-                : "No clips match. Try the other language, or ⌫ to drop a filter."
+                : "No nuts match. Try the other language, or ⌫ to drop a filter."
         } else {
             empty.stringValue = "No tags yet. Add some in Settings."
         }
         empty.isHidden = rows > 0
-        // Taller rows, so fewer of them: eight clip rows plus the chrome runs
+        // Taller rows, so fewer of them: eight nut rows plus the chrome runs
         // past the bottom of a laptop screen. And rows are not all the same
         // height — only one carrying a matched passage is three lines — so the
         // panel adds up the rows it will actually show instead of multiplying
         // the first one and being wrong about all the others.
-        let visible = max(1, min(rows, showsTagRows ? Palette.maxRows : maxClipRows(Palette.clipRowHeight)))
+        let visible = max(1, min(rows, showsTagRows ? Palette.maxRows : maxNutRows(Palette.nutRowHeight)))
         let height = (0..<visible).reduce(CGFloat(0)) { $0 + self.tableView(self.table, heightOfRow: $1) }
         scrollHeight.constant = rows == 0 ? 56 : height + 4
         panel.layoutIfNeeded()
@@ -699,11 +699,11 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             removeLastChip()
             return true
         }
-        if key.command, key.chars == "e", let clip = selectedClip { show(.edit(clip)); return true }
+        if key.command, key.chars == "e", let nut = selectedClip { show(.edit(nut)); return true }
         // ⌘D, not ⌘⌫: ⌫ is how you edit the search field, and pairing it with
-        // ⌘ put deleting a clip one slipped modifier away from erasing a word.
-        if key.command, key.chars == "d", let clip = selectedClip {
-            confirmDelete(clip)
+        // ⌘ put deleting a nut one slipped modifier away from erasing a word.
+        if key.command, key.chars == "d", let nut = selectedClip {
+            confirmDelete(nut)
             return true
         }
         return false
@@ -726,7 +726,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
 
     /// The tags a save would write. Ticked ones if there are any; otherwise
     /// the highlighted row, so tagging with one tag is a single key. Editing a
-    /// clip is exempt: unticking everything there means "no tags", and must.
+    /// nut is exempt: unticking everything there means "no tags", and must.
     private var pickedTags: [String] {
         let ticked = tags.filter { checked.contains($0.tagKey) }
         guard ticked.isEmpty, case .capture = mode,
@@ -743,7 +743,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         } else if let one = pickedTags.first {
             hints.stringValue = "→ saves with #\(one) · ↩ adds more · ⌘→ none · ← note"
         } else {
-            hints.stringValue = "↩ or 1–9 tags this clip · ← note"
+            hints.stringValue = "↩ or 1–9 tags this nut · ← note"
         }
     }
 
@@ -762,17 +762,17 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             let why = field.stringValue
             hide()
             delegate?.palette(self, didCapture: ctx, tags: dropTags ? [] : pickedTags, why: why)
-        case .edit(var clip):
-            clip.tags = tags.filter { checked.contains($0.tagKey) }
-            clip.why = field.stringValue.trimmed
+        case .edit(var nut):
+            nut.tags = tags.filter { checked.contains($0.tagKey) }
+            nut.why = field.stringValue.trimmed
             hide()
-            delegate?.palette(self, didEdit: clip)
+            delegate?.palette(self, didEdit: nut)
         case .browse:
-            guard let clip = selectedClip else { return }
-            if command, let url = clip.url.flatMap(URL.init(string:)) {
+            guard let nut = selectedClip else { return }
+            if command, let url = nut.url.flatMap(URL.init(string:)) {
                 NSWorkspace.shared.open(url)
             } else {
-                open(clip)
+                open(nut)
             }
             hide()
         }
@@ -786,7 +786,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         let noChips = activeTags.isEmpty && activeFacets.isEmpty
         chips.isHidden = noChips
         fieldGap.constant = noChips ? -2 : 8
-        field.placeholderString = noChips ? "Search clips…    # tag    @ filter" : "Search in these…"
+        field.placeholderString = noChips ? "Search nuts…    # tag    @ filter" : "Search in these…"
     }
 
     /// One chip. A facet is grey and a tag keeps the accent colour: the eye
@@ -860,27 +860,27 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         refreshBrowse()
     }
 
-    private func open(_ clip: Clip) {
-        if let file = clip.fileURL { NSWorkspace.shared.open(file) }
+    private func open(_ nut: Nut) {
+        if let file = nut.fileURL { NSWorkspace.shared.open(file) }
     }
 
-    private func confirmDelete(_ clip: Clip) {
+    private func confirmDelete(_ nut: Nut) {
         let alert = NSAlert()
-        alert.messageText = "Move “\(clip.title)” to the Trash?"
-        alert.informativeText = clip.path
+        alert.messageText = "Move “\(nut.title)” to the Trash?"
+        alert.informativeText = nut.path
         alert.addButton(withTitle: "Move to Trash")
         alert.addButton(withTitle: "Cancel")
         alert.alertStyle = .warning
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertFirstButtonReturn {
-            delegate?.palette(self, didDelete: clip)
+            delegate?.palette(self, didDelete: nut)
             refreshBrowse()
         }
         panel.makeKeyAndOrderFront(nil)
         focusField()
     }
 
-    private var selectedClip: Clip? {
+    private var selectedClip: Nut? {
         guard case .browse = mode, !suggesting, table.selectedRow >= 0, table.selectedRow < results.count else { return nil }
         return results[table.selectedRow]
     }
@@ -914,9 +914,9 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         if showsTagRows { return Palette.tagRowHeight }
         // Three lines when the search has a passage to show, two when it does
-        // not: browsing the most recent clips should not leave a gap per row.
+        // not: browsing the most recent nuts should not leave a gap per row.
         let hasMatch = row < results.count && !results[row].match.isEmpty
-        return hasMatch ? Palette.matchRowHeight : Palette.clipRowHeight
+        return hasMatch ? Palette.matchRowHeight : Palette.nutRowHeight
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -936,7 +936,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             cell.set(number: "#", tag: suggestions[row], checked: false, hint: "tab")
             return cell
         }
-        let cell = tableView.makeView(withIdentifier: ClipCell.id, owner: nil) as? ClipCell ?? ClipCell()
+        let cell = tableView.makeView(withIdentifier: NutCell.id, owner: nil) as? NutCell ?? NutCell()
         cell.set(results[row])
         return cell
     }
