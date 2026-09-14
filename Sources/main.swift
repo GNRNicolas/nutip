@@ -22,7 +22,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
     private let autoUpdateItem = NSMenuItem(title: "Check for Updates Automatically", action: #selector(toggleAutoUpdate), keyEquivalent: "")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        quitDuplicates()
+        // Launching Nutip when it is already running — from Spotlight, from
+        // the Applications folder, from `open -a` — used to do nothing at all
+        // that the eye could see: a menu-bar app has no window and no Dock
+        // icon to bring forward, so macOS activated a process that shows
+        // nothing. Hand the gesture to the copy already running, which answers
+        // it by opening the palette, and get out of its way.
+        if handOverToRunningCopy() { return }
         Log.write("launch \(Updater.currentVersion)")
 
         palette.delegate = self
@@ -37,6 +43,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
         currentFolder = Settings.folder
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(defaultsChanged),
                                                             name: Settings.changedNotification, object: nil)
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(browse),
+                                                            name: Settings.openNotification, object: nil)
         if Settings.folder != nil {
             let changed = Index.open()
             Store.regenerateIndexes(full: changed)
@@ -72,13 +80,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
         }
     }
 
-    /// Two running copies would answer the same hotkey twice.
-    private func quitDuplicates() {
-        guard let id = Bundle.main.bundleIdentifier else { return }
-        for app in NSRunningApplication.runningApplications(withBundleIdentifier: id)
-        where app.processIdentifier != ProcessInfo.processInfo.processIdentifier {
-            app.terminate()
-        }
+    /// True when another copy is already running and has been asked to open
+    /// the palette: this process has nothing left to do. Two running copies
+    /// would answer the same hotkey twice, so one of them has to go, and the
+    /// one that keeps the open index and the registered hotkey is the old one.
+    private func handOverToRunningCopy() -> Bool {
+        guard let id = Bundle.main.bundleIdentifier else { return false }
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: id)
+            .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
+        guard !others.isEmpty else { return false }
+        DistributedNotificationCenter.default().postNotificationName(
+            Settings.openNotification, object: nil, userInfo: nil, deliverImmediately: true)
+        Log.write("launch: already running, asked it to open the palette")
+        NSApp.terminate(nil)
+        return true
+    }
+
+    /// The Dock, Spotlight or Finder asking for an app with no window: show
+    /// the one thing worth showing.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        Log.write("reopen: opening the palette")
+        browse()
+        return true
     }
 
     private func buildMenu() {

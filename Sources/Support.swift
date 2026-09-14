@@ -42,6 +42,10 @@ enum Settings {
     /// Posted by the CLI after it changes a preference, observed by the running
     /// app. UserDefaults.didChangeNotification does not cross processes.
     static let changedNotification = Notification.Name("fr.nicolasgarnier.nutip.settingsChanged")
+    /// Posted by a second copy of the app started while one is already
+    /// running: the first one opens the palette instead of the second one
+    /// starting up invisibly.
+    static let openNotification = Notification.Name("fr.nicolasgarnier.nutip.open")
     static let defaultTags = ["reading", "ideas", "competitors", "reference"]
     static let defaultFolder = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Documents/Nutip")
