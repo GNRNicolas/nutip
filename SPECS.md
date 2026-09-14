@@ -1,6 +1,6 @@
 # Implementation notes
 
-What is worth knowing before changing Nutip — the decisions, and the ones
+What is worth knowing before changing Nutip: the decisions, and the ones
 that were rejected.
 
 ## Shape of the app
@@ -51,8 +51,35 @@ A clip can be about a competitor *and* about pricing. Folders cannot say
 that; tags can. Tags are slugs (`Slug.tag`): `#Pricing Model`,
 `pricing-model` and `Pricing model` are one tag, so the user never ends up
 with three spellings of the same thing. Renaming a tag in Preferences does
-not touch existing clips — a rewrite of every file is exactly the kind of
+not touch existing clips: a rewrite of every file is exactly the kind of
 surprise a tool like this must not produce.
+
+### A save costs the same at ten clips and at ten thousand
+
+The folder is meant to be saved into without thinking, so the cost of a clip
+must not grow with the folder. Two rules keep it flat:
+
+- **The index is read from SQLite, never from the files.** `Store.stamps()`
+  lists the folder and its modification dates, `Index.sync()` reads only the
+  files that appeared or changed, and every index page is written from rows
+  the database already holds. Before this, saving re-read and re-parsed every
+  clip: 7 s and 137 MB of reading on a folder of 5 000, at every single save.
+  It is now under half a second.
+- **Only the pages that mention the clip are rewritten**: the root `INDEX.md`,
+  the clip's month, and the tags it gained or lost. `nutip reindex` (or a
+  folder that changed behind Nutip's back) rewrites everything.
+
+The index rows carry no body, which is what makes them cheap. A row that
+comes back from a search therefore has `bodyLoaded == false`, and `Store.save`
+reloads the body from the file before writing: an edit of tags or of the note
+can never truncate a clip.
+
+### One clip stays readable in one go
+
+An extracted page is capped at `Settings.bodyLimit` (40 000 characters, a few
+long articles' worth) with a line saying so and the link to the rest. Nothing
+in the folder should cost an agent its context window to open, and past that
+length the link is worth more than the text.
 
 ### Generated files carry a marker
 
@@ -61,8 +88,16 @@ comment. It says "do not edit" to a human, and it is how Nutip recognises
 its own files: a `tags/x.md` without the marker is never deleted, a `README`
 without it is never overwritten. The user can take over any of them.
 
-The index lists the 500 most recent clips (`Settings.indexLimit`), not all
-of them: it is what an AI reads first, and it must fit in one read.
+The root index lists the 500 most recent clips (`Settings.indexLimit`), not
+all of them: it is what an AI reads first, and it must fit in one read. What
+it loses in depth it makes up in shape: the totals, every tag and every
+month as a link, so one read tells an agent what the folder holds and where
+to go next. `YYYY-MM/INDEX.md` is the complete list for one month, bounded by
+the month itself; `tags/<tag>.md` is the same for one tag. A tag with no clips
+has no page.
+
+`AGENTS.md` is generated alongside `README.md`: same facts, written for an
+agent rather than a person, and named what the tools look for.
 
 ### Frontmatter is deliberately dumb
 
@@ -109,7 +144,7 @@ the article, and `Resources/tomarkdown.js`, ~150 lines that walk the resulting
 DOM into Markdown. Rejected alternatives: writing a readability heuristic
 (months to match Mozilla's), a Swift HTML→Markdown library (a dependency, and
 still worse than running the real DOM), plain `URLSession` (no JavaScript, so
-no SPA). The web view uses a non-persistent data store — no cookies of the
+no SPA). The web view uses a non-persistent data store, no cookies of the
 user's session, nothing kept. Pages behind a login therefore extract nothing
 beyond what was selected; that is by design in v1.
 
@@ -138,7 +173,7 @@ to it.
 
 ## Global shortcut
 
-`RegisterEventHotKey` (Carbon) — the API launchers use, no permission
+`RegisterEventHotKey` (Carbon), the API launchers use: no permission
 needed, consumes the keystroke. Unlike Eyesaver it stays registered for the
 whole session: a clipper is asked for at any moment. Conflicts cannot be
 detected (macOS accepts a duplicate registration silently); the menu bar

@@ -70,6 +70,11 @@ enum Settings {
     /// How many entries INDEX.md and tags/*.md list. Everything older stays
     /// on disk and grep-able; the index is a window, not an archive.
     static let indexLimit = 500
+
+    /// How much extracted page text one clip may hold. A clip is meant to be
+    /// read in one go, by a person or an agent; past this the link is better
+    /// than the text, and the folder stays a folder rather than an archive.
+    static let bodyLimit = 40_000
 }
 
 // MARK: - Slugs

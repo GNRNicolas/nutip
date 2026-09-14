@@ -43,8 +43,10 @@ enum CLI {
             Settings.tags.forEach { print($0) }
         case "reindex":
             Index.open()
-            Store.regenerateIndexes()
-            print("reindexed \(Store.all().count) clips")
+            let started = Date()
+            let n = Index.rebuild()
+            Store.regenerateIndexes(full: true)
+            print("reindexed \(n) clip\(n == 1 ? "" : "s") in \(String(format: "%.1f", Date().timeIntervalSince(started)))s")
         case "recent":
             Index.open()
             let n = rest.first.flatMap(Int.init) ?? 20
@@ -117,8 +119,11 @@ enum CLI {
     private static func emit(_ clips: [Clip], json: Bool) {
         if json {
             let rows = clips.map { c -> [String: Any] in
-                ["path": c.path, "title": c.title, "url": c.url ?? "", "source": c.source,
-                 "captured_at": Dates.iso.string(from: c.capturedAt), "tags": c.tags, "why": c.why]
+                // `file` is absolute on purpose: an agent reads it without
+                // having to know where the folder is.
+                ["path": c.path, "file": c.fileURL?.path ?? c.path, "title": c.title, "url": c.url ?? "",
+                 "source": c.source, "captured_at": Dates.iso.string(from: c.capturedAt),
+                 "tags": c.tags, "why": c.why]
             }
             if let data = try? JSONSerialization.data(withJSONObject: rows, options: [.prettyPrinted, .sortedKeys]),
                let s = String(data: data, encoding: .utf8) { print(s) }

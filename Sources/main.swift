@@ -33,8 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
 
         registerHotkey()
         if Settings.folder != nil {
-            Index.open()
-            Store.regenerateIndexes()
+            let changed = Index.open()
+            Store.regenerateIndexes(full: changed)
         }
         if !Settings.onboarded || Settings.folder == nil {
             preferences.show(firstRun: true)
@@ -112,8 +112,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
     private func settingsChanged() {
         registerHotkey()
         if Settings.folder != nil {
-            Index.open()
-            Store.regenerateIndexes()
+            let changed = Index.open()
+            Store.regenerateIndexes(full: changed)
         }
     }
 
@@ -214,7 +214,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
 
     @objc private func reindex() {
         Index.open()
-        Store.regenerateIndexes()
+        Index.rebuild()
+        Store.regenerateIndexes(full: true)
     }
 
     @objc private func showPreferences() { preferences.show(firstRun: false) }

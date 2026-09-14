@@ -223,7 +223,7 @@ final class Preferences: NSObject, NSWindowDelegate, NSTokenFieldDelegate {
         // Backspace on a token is one keystroke; losing a tag should not be.
         let removed = Settings.tags.filter { !tags.contains($0) }
         if !removed.isEmpty {
-            let used = Store.all().filter { !Set($0.tags).isDisjoint(with: removed) }.count
+            let used = Index.count(anyOf: removed)
             let alert = NSAlert()
             alert.messageText = removed.count == 1 ? "Remove the tag “\(removed[0])”?" : "Remove \(removed.count) tags?"
             alert.informativeText = used == 0

@@ -30,11 +30,14 @@ pointing at the upstream repo.
 | To change | Edit |
 |---|---|
 | Default tags, default folder, index length | `Settings` in `Support.swift` |
-| Hotkey presets | `Hotkey` in `Shortcuts.swift` — one line per preset |
+| Hotkey presets | `Hotkey` in `Shortcuts.swift`, one line per preset |
 | The frontmatter, the file body | `Store.render` and `Store.parse` (keep them symmetrical) |
 | File and folder naming | `Store.add` (`YYYY-MM/YYYY-MM-DD-slug.md`) |
-| INDEX.md / tags/*.md layout | `Store.index(title:clips:total:depth:)` |
-| The folder README | `Store.writeReadme` |
+| INDEX.md layout | `Store.rootIndex` |
+| tags/*.md and monthly pages | `Store.index(title:subtitle:clips:…)` |
+| Which pages a save rewrites | `Store.regenerateIndexes(months:tags:full:)` |
+| The folder README and AGENTS.md | `Store.writeReadme`, `Store.writeAgents` |
+| How much page text a clip keeps | `Settings.bodyLimit` |
 | Which pasteboard types reveal the source page | `Capture.sourcePage` |
 | HTML → Markdown rules | `Resources/tomarkdown.js` |
 | Palette keys and hints | `Palette.handle` and the `hints.stringValue` lines in `Palette.show` |
@@ -57,7 +60,7 @@ NUTIP_DIR=/tmp/clips build/Nutip.app/Contents/MacOS/Nutip recent
 NUTIP_DIR=/tmp/clips build/Nutip.app/Contents/MacOS/Nutip   # the GUI, same folder
 ```
 
-`nutip extract <url>` prints what a page turns into — the fastest way to
+`nutip extract <url>` prints what a page turns into: the fastest way to
 work on `tomarkdown.js`.
 
 Log: `~/Library/Logs/nutip.log`. Every refused hotkey, failed extraction and
@@ -85,6 +88,15 @@ AppleScript error lands there with a reason.
 - **The palette reads the selection before it appears.** Anything that
   activates Nutip before `Capture.current()` runs (an alert, a window) makes
   Nutip the frontmost app and the selection is lost.
+- **Nothing that runs after a save may read the whole folder.** Index pages
+  are written from `Index` rows, and `Index.sync()` only opens files whose
+  modification date or size changed. Calling `Store.all()` in a save path
+  puts the folder back to O(everything) per clip.
+- **An index row has no body** (`bodyLoaded == false`). `Store.save` reloads
+  it before writing; if you add another writer, do the same or you will blank
+  files.
+- **Adding a column to `clips` means bumping `Index.schema`**, which drops the
+  database and rebuilds it. There is no migration and there should not be one.
 - **The SQLite index is disposable.** If a search looks wrong, `nutip
   reindex` (or the menu item) rebuilds it from the files. Never fix the
   database by hand; fix the parser.

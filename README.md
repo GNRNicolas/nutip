@@ -46,7 +46,7 @@ A small toast confirms, with **Undo** (⌘Z while it shows). Nothing to name,
 nothing to file.
 
 Press the hotkey with an empty clipboard, or click **Browse**, and the
-palette opens in **browse** mode: type to search everything you saved (title, note, tags, text — `#tag`
+palette opens in **browse** mode: type to search everything you saved (title, note, tags, text, and `#tag`
 restricts to a tag), **↩** opens the file in your editor, **⌘↩** opens the
 original link, **⌘E** edits tags and note, **⌘⌫** deletes.
 
@@ -58,12 +58,18 @@ original link, **⌘E** edits tags and note, **⌘⌫** deletes.
 
 ```
 Nutip/
-  README.md              how the folder is laid out, for humans and agents
-  INDEX.md               the 500 most recent clips, newest first
-  tags/reading.md        the same list, one tag
+  INDEX.md               counts, every tag, every month, the 500 most recent clips
+  AGENTS.md              the same folder, explained to an AI agent
+  README.md              the same, for a human
+  tags/reading.md        one tag, newest first
   2026-09/
+    INDEX.md             everything saved that month
     2026-09-13-title-of-the-thing.md
 ```
+
+Ten thousand clips change none of that: `INDEX.md` stays one read, the monthly
+pages hold the rest, and saving a clip rewrites only the pages that mention
+it.
 
 One clip:
 
@@ -88,15 +94,27 @@ The paragraph you had selected, if any.
 **Markdown** is a lightweight markup language for creating formatted text…
 ```
 
-Point the folder at your Obsidian vault, a Git repo, iCloud Drive — Nutip
+Point the folder at your Obsidian vault, a Git repo, iCloud Drive. Nutip
 does not care, and never needs to be running for the files to be useful.
 
 ### For AI agents
 
-Give Claude, Cursor or ChatGPT the folder. `INDEX.md` fits in one read and
-carries the `why` lines — the only thing an AI cannot infer. `tags/*.md`
-narrows it. The generated `README.md` in the folder explains the layout to
-whoever opens it, agent or human.
+Point Claude, Cursor, Codex or anything else at the folder. It is built to be
+read by one:
+
+- `AGENTS.md` is picked up on its own by most coding agents. It says what the
+  folder is, what to read first, and what never to edit.
+- `INDEX.md` is one read whatever the size: the totals, every tag and every
+  month as links, then the 500 most recent clips, each with its date, source,
+  tags and `why`. An agent picks the three files worth opening instead of
+  reading a thousand.
+- `why` is the one thing an agent cannot infer: the reason a human kept it.
+  It is on every index line.
+- `nutip search "…" --json` returns the same rows with an absolute `file`
+  path, so an agent can go straight to the text. Plain `grep` works too, and
+  the folder is just Markdown if Nutip is not installed.
+- A clip file is capped at 40 000 characters of extracted page text, so
+  opening one never costs an agent its context window.
 
 ### Command line
 
