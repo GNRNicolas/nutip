@@ -58,11 +58,19 @@ enum Store {
         }
 
         var clip = Clip(path: "\(month)/\(name)", title: cleanTitle, url: url?.trimmed,
-                        source: source, capturedAt: date, tags: tags.map(Slug.tag).filter { !$0.isEmpty }.uniqued(),
+                        source: source, capturedAt: date, tags: canonical(tags),
                         why: why.trimmed, body: body)
         if clip.url?.isEmpty == true { clip.url = nil }
         try save(clip)
         return clip
+    }
+
+    /// Tags as the user spells them: a tag that matches one in Settings takes
+    /// the spelling from Settings, so `pricing-model` typed in a script and
+    /// `Pricing-Model` in the palette do not write two spellings into files.
+    private static func canonical(_ tags: [String]) -> [String] {
+        let known = Dictionary(Settings.tags.map { ($0.tagKey, $0) }, uniquingKeysWith: { a, _ in a })
+        return tags.map(Slug.tag).map { known[$0.tagKey] ?? $0 }.uniquedTags()
     }
 
     /// Rewrites a clip in place (frontmatter and body), then regenerates only
@@ -214,7 +222,7 @@ enum Store {
 
         let tags = (fields["tags"] ?? "")
             .trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
-            .split(separator: ",").map { Slug.tag(String($0)) }.filter { !$0.isEmpty }
+            .split(separator: ",").map { Slug.tag(String($0)) }.uniquedTags()
         let date = fields["captured_at"].flatMap { Dates.iso.date(from: $0) ?? ISO8601DateFormatter().date(from: $0) }
             ?? (try? FileManager.default.attributesOfItem(atPath: (folder?.appendingPathComponent(path).path) ?? "")[.creationDate] as? Date)
             ?? Date()
@@ -273,11 +281,24 @@ enum Store {
 
         let tagsDir = root.appendingPathComponent(tagsDirectory, isDirectory: true)
         try? FileManager.default.createDirectory(at: tagsDir, withIntermediateDirectories: true)
-        let counts = Dictionary(uniqueKeysWithValues: tagCounts)
-        let targets = full ? Set(tagCounts.map(\.0)).union(Settings.tags) : tags
+        let counts = Dictionary(tagCounts.map { ($0.0.tagKey, $0.1) }, uniquingKeysWith: +)
+        // One page per tag, named the way `tagCounts` spells it: two clips
+        // written `Réflexions` and `reflexions` share a tag, so they share a
+        // page, and the other spelling of it is removed.
+        let spelling = Dictionary(tagCounts.map { ($0.0.tagKey, $0.0) }, uniquingKeysWith: { a, _ in a })
+        let pages = (try? FileManager.default.contentsOfDirectory(atPath: tagsDir.path))?
+            .filter { $0.hasSuffix(".md") }.map { String($0.dropLast(3)) } ?? []
+        // In `full`, every page on disk is visited too, so a tag nobody uses
+        // any more loses its page instead of lingering.
+        let targets = full ? (tagCounts.map(\.0) + Settings.tags + pages).uniquedTags() : Array(tags).uniquedTags()
         for tag in targets where !tag.isEmpty {
-            let file = tagsDir.appendingPathComponent("\(tag).md")
-            let n = counts[tag] ?? 0
+            let name = spelling[tag.tagKey] ?? tag
+            let file = tagsDir.appendingPathComponent("\(name).md")
+            let n = counts[tag.tagKey] ?? 0
+            // Whatever else spells this tag is not a second tag.
+            for page in pages where page.tagKey == tag.tagKey && page != name {
+                removeGenerated(tagsDir.appendingPathComponent("\(page).md"))
+            }
             // A page is written for a tag that has clips. A configured tag
             // nobody has used yet would only be an empty page to open.
             if n == 0 {
@@ -285,7 +306,7 @@ enum Store {
                 continue
             }
             let clips = Index.recent(tag: tag, limit: limit)
-            write(index(title: "#\(tag)",
+            write(index(title: "#\(name)",
                         subtitle: n == clips.count
                             ? "\(n) clip\(n == 1 ? "" : "s"), newest first."
                             : "\(clips.count) most recent of \(n) clips.",

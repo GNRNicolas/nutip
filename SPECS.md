@@ -59,9 +59,14 @@ key, and by key code rather than by character so it works on AZERTY.
 ### Tags, not folders
 
 A clip can be about a competitor *and* about pricing. Folders cannot say
-that; tags can. Tags are slugs (`Slug.tag`): `#Pricing Model`,
-`pricing-model` and `Pricing model` are one tag, so the user never ends up
-with three spellings of the same thing. Renaming a tag in Preferences does
+that; tags can. A tag keeps the letters that were typed, capitals and accents
+included (`Pricing-Model`, `Réflexions`); only what would break a file name, a
+relative link or a `#tag` in a query is folded away, so a space becomes a dash
+(`Slug.tag`). Comparison is a different question from spelling: two tags are
+the same when their `tagKey` matches, which is case- and accent-insensitive,
+the same folding the search index uses. So `Reading`, `reading` and `réading`
+are one tag with one page, named the way Settings spells it, or failing that
+the way most files do. Renaming a tag in Preferences does
 not touch existing clips: a rewrite of every file is exactly the kind of
 surprise a tool like this must not produce.
 

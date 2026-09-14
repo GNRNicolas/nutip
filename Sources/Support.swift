@@ -58,8 +58,8 @@ enum Settings {
     /// The user's tags, in the order the palette lists them: the first nine
     /// answer to the keys 1 to 9.
     static var tags: [String] {
-        get { (defaults.stringArray(forKey: "tags") ?? defaultTags).map(Slug.tag).filter { !$0.isEmpty }.uniqued() }
-        set { defaults.set(newValue.map(Slug.tag).filter { !$0.isEmpty }.uniqued(), forKey: "tags") }
+        get { (defaults.stringArray(forKey: "tags") ?? defaultTags).map(Slug.tag).uniquedTags() }
+        set { defaults.set(newValue.map(Slug.tag).uniquedTags(), forKey: "tags") }
     }
 
     static var onboarded: Bool {
@@ -75,6 +75,30 @@ enum Settings {
     /// read in one go, by a person or an agent; past this the link is better
     /// than the text, and the folder stays a folder rather than an archive.
     static let bodyLimit = 40_000
+}
+
+// MARK: - Tags
+
+extension String {
+    /// What two tags are compared on: `Reading`, `reading` and `Réading` are
+    /// one tag. Same folding as the search index (`remove_diacritics`), so a
+    /// tag never behaves one way in the list and another in a query.
+    var tagKey: String { folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) }
+}
+
+extension Array where Element == String {
+    /// De-duplicates tags the way they compare, keeping the first spelling:
+    /// the one in Settings wins over the one already in a file.
+    func uniquedTags() -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        for tag in self where !tag.isEmpty {
+            if seen.insert(tag.tagKey).inserted { out.append(tag) }
+        }
+        return out
+    }
+
+    func containsTag(_ tag: String) -> Bool { contains { $0.tagKey == tag.tagKey } }
 }
 
 // MARK: - Slugs
@@ -99,10 +123,25 @@ enum Slug {
         return out.isEmpty ? "clip" : out
     }
 
-    /// Tags are slugs too, so `#Pricing Model` and `pricing-model` are one tag.
+    /// A tag keeps the letters that were typed, capitals and accents included:
+    /// `Pricing-Model`, `Réflexions`, `本`. Only what would break a file name,
+    /// a relative link or a `#tag` in a search is folded away: spaces and
+    /// punctuation become a dash. Case never makes two tags (see `uniquedTags`).
     static func tag(_ text: String) -> String {
-        make(text.trimmingCharacters(in: CharacterSet(charactersIn: "# ")), limit: 40)
-            .replacingOccurrences(of: "^clip$", with: "", options: .regularExpression)
+        var out = ""
+        var dash = false
+        for scalar in text.trimmingCharacters(in: CharacterSet(charactersIn: "# ")).unicodeScalars {
+            if CharacterSet.alphanumerics.contains(scalar) {
+                out.unicodeScalars.append(scalar)
+                dash = false
+            } else if !dash, !out.isEmpty {
+                out.append("-")
+                dash = true
+            }
+            if out.count >= 40 { break }
+        }
+        while out.hasSuffix("-") { out.removeLast() }
+        return out
     }
 }
 

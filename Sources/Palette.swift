@@ -35,6 +35,8 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
 
     private var mode: PaletteMode = .browse
     private var tags: [String] = []
+    /// Ticked tags, held as keys so `Reading` in Settings and `reading` in a
+    /// file are the same tick.
     private var checked = Set<String>()
     private var results: [Clip] = []
     /// Browse: tags pinned as blue chips before the field, and the tag
@@ -387,8 +389,8 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     }
 
     private func showEdit(_ clip: Clip) {
-        tags = (Settings.tags + clip.tags).uniqued()
-        checked = Set(clip.tags)
+        tags = (Settings.tags + clip.tags).uniquedTags()
+        checked = Set(clip.tags.map(\.tagKey))
         clipTitle.stringValue = clip.title
         clipMeta.textColor = .secondaryLabelColor
         clipMeta.stringValue = "Editing · \(clip.source) · \(Dates.relative(clip.capturedAt))"
@@ -684,7 +686,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private func toggle(index: Int) {
         guard index < tags.count else { return }
         let tag = tags[index]
-        if checked.contains(tag) { checked.remove(tag) } else { checked.insert(tag) }
+        if checked.contains(tag.tagKey) { checked.remove(tag.tagKey) } else { checked.insert(tag.tagKey) }
         table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
         table.reloadData(forRowIndexes: IndexSet(integer: index), columnIndexes: IndexSet(integer: 0))
     }
@@ -694,9 +696,9 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         case .capture(let ctx):
             let why = field.stringValue
             hide()
-            delegate?.palette(self, didCapture: ctx, tags: tags.filter { checked.contains($0) }, why: why)
+            delegate?.palette(self, didCapture: ctx, tags: tags.filter { checked.contains($0.tagKey) }, why: why)
         case .edit(var clip):
-            clip.tags = tags.filter { checked.contains($0) }
+            clip.tags = tags.filter { checked.contains($0.tagKey) }
             clip.why = field.stringValue.trimmed
             hide()
             delegate?.palette(self, didEdit: clip)
@@ -748,7 +750,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
 
     private func refreshBrowse() {
         if let partial = currentHashToken {
-            suggestions = Settings.tags.filter { !activeTags.contains($0) && (partial.isEmpty || $0.hasPrefix(partial.lowercased())) }
+            suggestions = Settings.tags.filter { !activeTags.containsTag($0) && (partial.isEmpty || $0.tagKey.hasPrefix(partial.tagKey)) }
         } else {
             suggestions = []
             results = Index.search(searchText, tags: activeTags)
@@ -833,7 +835,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         if isTagMode {
             let cell = tableView.makeView(withIdentifier: TagCell.id, owner: nil) as? TagCell ?? TagCell()
             let tag = tags[row]
-            cell.set(number: row < 9 ? "\(row + 1)" : "", tag: tag, checked: checked.contains(tag))
+            cell.set(number: row < 9 ? "\(row + 1)" : "", tag: tag, checked: checked.contains(tag.tagKey))
             return cell
         }
         if suggesting {

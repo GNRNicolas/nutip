@@ -331,7 +331,7 @@ final class Preferences: NSObject, NSWindowDelegate, NSTableViewDataSource, NSTa
         let name = Slug.tag(sender.stringValue)
         let wasBlank = tags[row].isEmpty
         // An empty name, or one that already exists, is not a tag: undo the row.
-        guard !name.isEmpty, !tags.enumerated().contains(where: { $0.offset != row && $0.element == name }) else {
+        guard !name.isEmpty, !tags.enumerated().contains(where: { $0.offset != row && $0.element.tagKey == name.tagKey }) else {
             if wasBlank { tags.remove(at: row) } // the row + just added, abandoned
             tagTable.reloadData()
             showTagHint()
@@ -345,7 +345,7 @@ final class Preferences: NSObject, NSWindowDelegate, NSTableViewDataSource, NSTa
     }
 
     private func showTagHint() {
-        tagStatus.stringValue = "Double-click to rename. The first nine answer to keys 1–9 in the palette."
+        tagStatus.stringValue = "Double-click to rename. Capitals and accents are kept; spaces become a dash. The first nine answer to keys 1–9 in the palette."
     }
 
     // MARK: Undo
@@ -358,7 +358,7 @@ final class Preferences: NSObject, NSWindowDelegate, NSTableViewDataSource, NSTa
     }
 
     private func commit() {
-        tags = tags.map(Slug.tag).filter { !$0.isEmpty }.uniqued()
+        tags = tags.map(Slug.tag).uniquedTags()
         Settings.tags = tags
         tagTable.reloadData()
         onChange?()

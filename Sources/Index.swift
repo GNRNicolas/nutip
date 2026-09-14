@@ -11,7 +11,7 @@ enum Index {
     private static var db: OpaquePointer?
     private static let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
     /// Bumped when the columns change: the database is rebuilt instead of migrated.
-    private static let schema: Int32 = 2
+    private static let schema: Int32 = 3
 
     private static var file: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -41,7 +41,7 @@ enum Index {
         PRAGMA journal_mode = WAL;
         CREATE TABLE IF NOT EXISTS clips (
             path TEXT PRIMARY KEY, title TEXT, url TEXT, url_key TEXT, domain TEXT, source TEXT,
-            captured_at REAL, month TEXT, tags TEXT, why TEXT, mtime REAL, size INTEGER
+            captured_at REAL, month TEXT, tags TEXT, tags_key TEXT, why TEXT, mtime REAL, size INTEGER
         );
         CREATE INDEX IF NOT EXISTS clips_date ON clips (captured_at DESC);
         CREATE INDEX IF NOT EXISTS clips_url ON clips (url_key);
@@ -120,12 +120,13 @@ enum Index {
 
     private static func insert(_ clip: Clip, stamp: Stamp) {
         run("""
-            INSERT INTO clips (path, title, url, url_key, domain, source, captured_at, month, tags, why, mtime, size)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            INSERT INTO clips (path, title, url, url_key, domain, source, captured_at, month, tags, tags_key, why, mtime, size)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             [clip.path, clip.title, clip.url ?? "", normalize(clip.url ?? ""), clip.domain, clip.source,
              clip.capturedAt.timeIntervalSince1970, String(clip.path.prefix(7)),
-             clip.tags.joined(separator: " "), clip.why, stamp.modified, stamp.size])
+             clip.tags.joined(separator: " "), clip.tags.map(\.tagKey).joined(separator: " "),
+             clip.why, stamp.modified, stamp.size])
         run("INSERT INTO fts (path, title, tags, why, body) VALUES (?,?,?,?,?)",
             [clip.path, clip.title, clip.tags.joined(separator: " "), clip.why, String(clip.body.prefix(20_000))])
     }
@@ -159,14 +160,14 @@ enum Index {
     /// The most recent clips, optionally of one tag: what an index page lists.
     static func recent(tag: String? = nil, limit: Int) -> [Clip] {
         guard db != nil else {
-            let all = Store.all().filter { tag == nil || $0.tags.contains(tag!) }
+            let all = Store.all().filter { tag == nil || $0.tags.containsTag(tag!) }
             return Array(all.prefix(limit))
         }
         if let tag {
             return clips("""
-                SELECT \(columns) FROM clips WHERE (' ' || tags || ' ') LIKE ?
+                SELECT \(columns) FROM clips WHERE (' ' || tags_key || ' ') LIKE ?
                 ORDER BY captured_at DESC LIMIT ?
-                """, ["% \(tag) %", limit])
+                """, ["% \(tag.tagKey) %", limit])
         }
         return clips("SELECT \(columns) FROM clips ORDER BY captured_at DESC LIMIT ?", [limit])
     }
@@ -187,23 +188,36 @@ enum Index {
         return out
     }
 
-    /// Every tag in use, with its count, most used first.
+    /// Every tag in use, with its count, most used first. Spellings that
+    /// differ only by case or accent are one tag. The spelling shown is the
+    /// one in Settings, or failing that the one most files use: whichever it
+    /// is, it does not change between two runs.
     static func tagCounts() -> [(String, Int)] {
         var counts: [String: Int] = [:]
+        var spellings: [String: [String: Int]] = [:]
         forEachRow("SELECT tags FROM clips", []) { stmt in
             guard let c = sqlite3_column_text(stmt, 0) else { return }
-            for tag in String(cString: c).split(separator: " ") { counts[String(tag), default: 0] += 1 }
+            for raw in String(cString: c).split(separator: " ") {
+                let tag = String(raw)
+                counts[tag.tagKey, default: 0] += 1
+                spellings[tag.tagKey, default: [:]][tag, default: 0] += 1
+            }
         }
-        return counts.sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }.map { ($0.key, $0.value) }
+        let configured = Dictionary(Settings.tags.map { ($0.tagKey, $0) }, uniquingKeysWith: { a, _ in a })
+        return counts.sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+            .map { key, n in
+                let best = (spellings[key] ?? [:]).sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }.first?.key
+                return (configured[key] ?? best ?? key, n)
+            }
     }
 
     /// How many clips carry any of these tags: what the Settings alert counts
     /// before it lets a tag go.
     static func count(anyOf tags: [String]) -> Int {
-        guard db != nil else { return Store.all().filter { !Set($0.tags).isDisjoint(with: tags) }.count }
+        guard db != nil else { return Store.all().filter { $0.tags.contains { tags.containsTag($0) } }.count }
         guard !tags.isEmpty else { return 0 }
-        let clause = tags.map { _ in "(' ' || tags || ' ') LIKE ?" }.joined(separator: " OR ")
-        return count("SELECT COUNT(*) FROM clips WHERE \(clause)", tags.map { "% \($0) %" })
+        let clause = tags.map { _ in "(' ' || tags_key || ' ') LIKE ?" }.joined(separator: " OR ")
+        return count("SELECT COUNT(*) FROM clips WHERE \(clause)", tags.map { "% \($0.tagKey) %" })
     }
 
     /// The clip already saved from this URL, if any (ignoring the fragment).
