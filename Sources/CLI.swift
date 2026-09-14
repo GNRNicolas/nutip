@@ -247,6 +247,15 @@ enum CLI {
         guard !text.isEmpty else { fail("nothing to add") }
         Index.open()
         let isURL = text.isURL
+        // The palette says "already saved" before you press Save; the CLI said
+        // nothing and quietly made a second file. Still saved - it may well be
+        // deliberate - but said out loud.
+        if isURL, let existing = Index.existing(url: text) {
+            let when = Dates.day(existing.capturedAt)
+            let notice = "nutip: already saved on \(when) as \(existing.path)"
+                + (existing.why.isEmpty ? "" : " (\(existing.why))") + ". Saving anyway.\n"
+            FileHandle.standardError.write(notice.data(using: .utf8)!)
+        }
         do {
             let fallbackTitle = isURL ? (URL(string: text)?.domain ?? text) : text.excerpt(70)
             let clip = try Store.add(title: options.title.isEmpty ? fallbackTitle : options.title,
@@ -264,18 +273,29 @@ enum CLI {
     /// The GUI extracts in the background after the palette closes; a command
     /// has nowhere to hide it, so this is opt-in and blocking.
     private static func readPage(_ url: URL, into clip: Clip, keepTitle: Bool) {
-        guard let page = page(at: url), !page.markdown.trimmed.isEmpty else {
+        guard let page = page(at: url) else {
             FileHandle.standardError.write("nutip: saved, but could not read the page\n".data(using: .utf8)!)
             return
         }
         var updated = clip
+        if page.markdown.trimmed.isEmpty {
+            // Worth saying out loud: this clip is findable by its title and
+            // its link, and by nothing else.
+            let notice = "nutip: saved, but this page has no readable text (a video, a paywall or an app). "
+                + "Only its title and link are searchable — a -w reason would help.\n"
+            FileHandle.standardError.write(notice.data(using: .utf8)!)
+        }
         // Title first, then the text: `append` re-reads the file, so saving the
         // title afterwards would drop the body.
         if !keepTitle, !page.title.trimmed.isEmpty, page.title.trimmed != clip.title {
             updated.title = page.title.trimmed
             try? Store.save(updated)
         }
-        try? Store.append(page.markdown, to: updated)
+        if page.markdown.trimmed.isEmpty {
+            try? Store.append("*(no readable text on this page — the link above is the clip.)*", to: updated)
+        } else {
+            try? Store.append(page.markdown, to: updated)
+        }
     }
 
     /// Trashes a clip and brings the indexes back in line. The path may be

@@ -206,12 +206,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
                 current.title = result.title
             }
             var article = result.markdown
-            if !result.byline.isEmpty { article = "*\(result.byline)*\n\n" + article }
+            if !result.byline.isEmpty, !article.isEmpty { article = "*\(result.byline)*\n\n" + article }
             do {
                 try Store.save(current)
-                try Store.append(article, to: current)
+                if article.trimmed.isEmpty {
+                    // A video, a paywall, an app: the link and the title are
+                    // all there is. Say so on the clip, so that reading it
+                    // later — or an agent searching it — is not left guessing
+                    // why there is no text.
+                    try Store.append("*(no readable text on this page — the link above is the clip.)*", to: current)
+                    Log.write("extracted: no text at \(url.absoluteString), kept the title")
+                } else {
+                    try Store.append(article, to: current)
+                }
                 if self?.lastClip?.path == clip.path { self?.lastClip = try Store.read(path: clip.path) }
-                Log.write("extracted \(result.markdown.count) chars into \(clip.path)")
+                if !article.trimmed.isEmpty { Log.write("extracted \(result.markdown.count) chars into \(clip.path)") }
             } catch {
                 Log.write("extract save failed: \(error.localizedDescription)")
             }

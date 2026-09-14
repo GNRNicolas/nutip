@@ -85,6 +85,9 @@ over whatever you are doing:
   footer always says which of these is about to happen.
 - The palette closes at once; if there is a page, its readable text is
   fetched in the background and added to the file a couple of seconds later.
+- A video, a paywall or an app has no readable text. The clip still gets the
+  page's real title and says it has no text, instead of being filed under the
+  domain it came from.
 
 A small toast confirms, with **Undo** (⌘Z while it shows). Nothing to name,
 nothing to file.

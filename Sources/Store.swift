@@ -343,7 +343,7 @@ enum Store {
                   to: file)
         }
 
-        writeAgents(root: root, total: total)
+        writeAgents(root: root)
         writeReadme(root: root)
     }
 
@@ -409,7 +409,10 @@ enum Store {
 
     /// The file an agent reads first. Short on purpose: what is here, what to
     /// read, what not to touch.
-    private static func writeAgents(root: URL, total: Int) {
+    /// The folder's note to an agent. Deliberately free of any figure that
+    /// moves: written on every save, it would otherwise show up in `git
+    /// status` after each clip for the sake of a counter INDEX.md already has.
+    private static func writeAgents(root: URL) {
         let text = """
         \(marker)
 
@@ -422,8 +425,8 @@ enum Store {
         ## Read in this order
 
         1. `INDEX.md` at the root: the counts, every tag, every month, and the most recent
-           \(Settings.indexLimit) clips with their `why` line. One read, whatever the folder holds
-           (currently \(total) clip\(total == 1 ? "" : "s")).
+           \(Settings.indexLimit) clips with their `why` line. One read, whatever the folder
+           holds — the count is at the top of it.
         2. `tags/<tag>.md` for one subject, `YYYY-MM/INDEX.md` for one month.
         3. The clip files themselves for the full text.
 

@@ -35,6 +35,16 @@ final class Extractor: NSObject, WKNavigationDelegate {
         return a + "\n" + b + """
 
         (function () {
+          // Readability assigns innerHTML internally. On a site with a Trusted
+          // Types policy — YouTube, every Google property, and more each year —
+          // that throws and the extraction is lost. A default policy that
+          // passes the string through restores it. Wrapped: a site may forbid
+          // creating one, and then we fall back to the title and description.
+          try {
+            if (window.trustedTypes && window.trustedTypes.createPolicy) {
+              window.trustedTypes.createPolicy('default', { createHTML: function (s) { return s; } });
+            }
+          } catch (e) {}
           function meta(names) {
             for (var i = 0; i < names.length; i++) {
               var el = document.querySelector(names[i]);
@@ -55,8 +65,13 @@ final class Extractor: NSObject, WKNavigationDelegate {
             var doc = document.cloneNode(true);
             var article = new Readability(doc, { charThreshold: 200 }).parse();
             if (!article) return { title: heading, byline: '', excerpt: description, markdown: '', description: description };
-            var wrapper = document.createElement('div');
-            wrapper.innerHTML = article.content;
+            // Not innerHTML: a site with a Trusted Types policy (YouTube and
+            // every Google property, and more each year) makes that assignment
+            // throw, and the whole extraction was lost with it. DOMParser
+            // parses the same string and is not covered by the policy.
+            var wrapper = new DOMParser()
+              .parseFromString('<div>' + article.content + '</div>', 'text/html')
+              .body.firstChild;
             return {
               title: article.title || heading,
               byline: article.byline || '',
@@ -64,7 +79,13 @@ final class Extractor: NSObject, WKNavigationDelegate {
               markdown: nutipToMarkdown(wrapper, location.href),
               description: description
             };
-          } catch (e) { return { error: String(e) }; }
+          } catch (e) {
+            // Readability failed, but the page still said what it is. Handing
+            // back the title and the description beats handing back nothing:
+            // the clip keeps its real name instead of its domain.
+            return { title: heading, byline: '', excerpt: description, markdown: '',
+                     description: description, error: String(e) };
+          }
         })();
         """
     }()
@@ -113,9 +134,9 @@ final class Extractor: NSObject, WKNavigationDelegate {
             if let error { Log.write("extractor: js \(error.localizedDescription)") }
             guard let dict = result as? [String: Any] else { self?.finish(web, with: nil); return }
             if let err = dict["error"] as? String {
-                Log.write("extractor: readability \(err)")
-                self?.finish(web, with: nil)
-                return
+                Log.write("extractor: readability \(err) — kept the title")
+                // Fall through: the script now returns the page's own title and
+                // description alongside the error, and those are worth keeping.
             }
             var out = Extracted(title: dict["title"] as? String ?? "",
                                 byline: dict["byline"] as? String ?? "",
@@ -128,7 +149,13 @@ final class Extractor: NSObject, WKNavigationDelegate {
                !out.markdown.contains(description) {
                 out.markdown = out.markdown.isEmpty ? description : description + "\n\n" + out.markdown
             }
-            self?.finish(web, with: out.markdown.isEmpty ? nil : out)
+            // A page with no article still knows its own name. Returning nil
+            // here threw that away, and a saved YouTube video ended up titled
+            // "youtube.com": nothing to search, nothing to recognise. Anything
+            // at all is worth handing back; the caller decides what to do with
+            // a clip that has a title and no text.
+            let nothing = out.markdown.isEmpty && out.title.trimmed.isEmpty
+            self?.finish(web, with: nothing ? nil : out)
         }
     }
 
