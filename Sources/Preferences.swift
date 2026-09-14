@@ -49,7 +49,7 @@ final class Preferences: NSObject, NSWindowDelegate, NSTokenFieldDelegate {
         let name = NSTextField(labelWithString: "Nutip")
         name.font = .systemFont(ofSize: 22, weight: .semibold)
         let tagline = NSTextField(wrappingLabelWithString:
-            "Press \(Hotkey.current.label) anywhere: the page you are reading or the text you selected becomes a Markdown file in your folder, with your tags and a one-line note.")
+            "Copy anything with ⌘C, then press \(Hotkey.current.label): what you copied becomes a Markdown file in your folder, with your tags and a one-line note.")
         tagline.font = .systemFont(ofSize: 13)
         tagline.textColor = .secondaryLabelColor
         let headerText = NSStackView(views: [name, tagline])

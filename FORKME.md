@@ -89,9 +89,10 @@ AppleScript error lands there with a reason.
 - **Generated files are recognised by `Store.marker`.** Change its text and
   every existing INDEX and tag page becomes "the user's", never rewritten
   again. Bump it deliberately or not at all.
-- **The palette reads the selection before it appears.** Anything that
-  activates Nutip before `Capture.current()` runs (an alert, a window) makes
-  Nutip the frontmost app and the selection is lost.
+- **The palette reads the clipboard before it appears.** `Capture.current()`
+  also asks `NSWorkspace` which app is frontmost, for the `source` field, so
+  anything that activates Nutip first (an alert, a window) records Nutip
+  instead of the app the user was in.
 - **Nothing that runs after a save may read the whole folder.** Index pages
   are written from `Index` rows, and `Index.sync()` only opens files whose
   modification date or size changed. Calling `Store.all()` in a save path
