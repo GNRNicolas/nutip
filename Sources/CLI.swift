@@ -17,6 +17,7 @@ enum CLI {
       nutip folder [path]                the clips folder; with a path, move to it
       nutip reindex                      rebuild INDEX.md, tags/*.md and the search index
       nutip doctor                       permissions, folder, hotkey
+      nutip filters
       nutip enrich [--dry-run]
       nutip --help
 
@@ -58,9 +59,22 @@ enum CLI {
             Index.open()
             let query = rest.joined(separator: " ")
             guard !query.trimmed.isEmpty else { fail("search needs a query") }
-            let found = Index.search(query, limit: 50)
+            // `@week`, `@links`, `@github.com` — the same filters the palette
+            // offers, so an agent can narrow the way a person does.
+            var words: [String] = []
+            var facets: [Index.Facet] = []
+            for word in query.split(separator: " ") {
+                guard word.hasPrefix("@"), word.count > 1 else { words.append(String(word)); continue }
+                let wanted = String(word.dropFirst())
+                if let facet = Index.facets(matching: wanted).first { facets.append(facet) }
+                else { fail("no filter called @\(wanted). Try: nutip filters") }
+            }
+            let found = Index.search(words.joined(separator: " "), facets: facets, limit: 50)
             emit(found, json: json)
             if found.isEmpty { suggest() }
+        case "filters":
+            Index.open()
+            for facet in Index.facets() { print("@\(facet.value)\(facet.label == facet.value ? "" : "   \(facet.label)")") }
         case "enrich":
             enrich(dry: rest.contains("--dry-run"))
         case "add":
@@ -310,7 +324,11 @@ enum CLI {
                 // having to know where the folder is.
                 ["path": c.path, "file": c.fileURL?.path ?? c.path, "title": c.title, "url": c.url ?? "",
                  "source": c.source, "captured_at": Dates.iso.string(from: c.capturedAt),
-                 "tags": c.tags, "why": c.why]
+                 "tags": c.tags, "why": c.why,
+                 // Why this clip is in the list: the passage that matched,
+                 // cut around the words. Lets an agent judge a row without
+                 // opening the file.
+                 "match": c.match.plainMatch]
             }
             if let data = try? JSONSerialization.data(withJSONObject: rows, options: [.prettyPrinted, .sortedKeys]),
                let s = String(data: data, encoding: .utf8) { print(s) }
@@ -322,6 +340,7 @@ enum CLI {
             print(line)
             if let url = c.url, !url.isEmpty { print("            \(url)") }
             if !c.why.isEmpty { print("            · \(c.why)") }
+            if !c.match.isEmpty { print("            ~ \(c.match.plainMatch)") }
             print("            \(c.path)")
         }
         if clips.isEmpty { print("(no clips)") }

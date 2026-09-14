@@ -15,6 +15,9 @@ struct Clip: Equatable {
     /// Indexed like the body, so a question that paraphrases the page still
     /// finds it. Editable by hand; regenerated only when empty.
     var keywords: [String] = []
+    /// The piece of text a search matched, with the matched words marked by
+    /// FTS5. Only ever set by a search: it is not in the file.
+    var match: String = ""
     var body: String            // everything after the frontmatter
     /// False for a row that came from the search index, which stores no body.
     /// `Store.save` reloads the body first, so such a row can never truncate a file.

@@ -132,17 +132,99 @@ enum Index {
              clip.keywords.joined(separator: " "), String(clip.body.prefix(20_000))])
     }
 
+    // MARK: Facets
+
+    /// A filter the user picked from a list, never typed from memory: `@` in
+    /// the search field offers exactly these. Two of the three kinds are read
+    /// from the clips themselves, so there is no vocabulary to maintain — a
+    /// domain appears the day it is first saved and disappears with the last
+    /// clip that used it.
+    struct Facet: Equatable {
+        enum Kind: String { case when, domain, kind }
+        var kind: Kind
+        var value: String       // "week", "github.com", "link"
+        var label: String       // what the chip says
+
+        /// The SQL this facet adds, and its argument if it has one.
+        var clause: (String, Any?) {
+            switch kind {
+            case .when:
+                return ("clips.captured_at >= ?", Facet.start(of: value).timeIntervalSince1970)
+            case .domain:
+                return ("clips.domain = ?", value)
+            case .kind:
+                return (value == "link" ? "clips.url != ''" : "clips.url = ''", nil)
+            }
+        }
+
+        private static func start(of span: String) -> Date {
+            let cal = Calendar.current, now = Date()
+            switch span {
+            case "today": return cal.startOfDay(for: now)
+            case "week": return cal.date(byAdding: .day, value: -7, to: now) ?? now
+            case "month": return cal.date(byAdding: .month, value: -1, to: now) ?? now
+            default: return cal.date(byAdding: .year, value: -1, to: now) ?? now
+            }
+        }
+    }
+
+    /// What `@` offers, in the order it offers it: the four spans of time,
+    /// then the two kinds, then the domains actually in the folder, most used
+    /// first. Counted at every keystroke — it is one grouped query on an
+    /// indexed column, and it means the list can never be stale.
+    static func facets(matching partial: String = "") -> [Facet] {
+        var out: [Facet] = [
+            Facet(kind: .when, value: "today", label: "today"),
+            Facet(kind: .when, value: "week", label: "this week"),
+            Facet(kind: .when, value: "month", label: "this month"),
+            Facet(kind: .when, value: "year", label: "this year"),
+            Facet(kind: .kind, value: "link", label: "links"),
+            Facet(kind: .kind, value: "text", label: "text"),
+        ]
+        for (domain, count) in domains() {
+            out.append(Facet(kind: .domain, value: domain, label: "\(domain) (\(count))"))
+        }
+        let needle = partial.tagKey
+        return needle.isEmpty ? out : out.filter { $0.value.tagKey.contains(needle) || $0.label.tagKey.hasPrefix(needle) }
+    }
+
+    /// Domains in use, most saved first. Empty domains (text clips) excluded.
+    static func domains() -> [(String, Int)] {
+        var out: [(String, Int)] = []
+        forEachRow("""
+            SELECT domain, COUNT(*) FROM clips WHERE domain != ''
+            GROUP BY domain ORDER BY COUNT(*) DESC, domain ASC LIMIT 40
+            """, []) { stmt in
+            guard let c = sqlite3_column_text(stmt, 0) else { return }
+            out.append((String(cString: c), Int(sqlite3_column_int64(stmt, 1))))
+        }
+        return out
+    }
+
     // MARK: Queries
 
     /// Newest first. Empty query → the most recent clips. The rows carry no
     /// body: nothing here opens a file.
-    static func search(_ query: String, tags: [String] = [], limit: Int = 50) -> [Clip] {
+    static func search(_ query: String, tags: [String] = [], facets: [Facet] = [], limit: Int = 50) -> [Clip] {
         guard db != nil else {
             return Array(Store.all().filter { Set(tags).isSubset(of: $0.tags) }.prefix(limit))
         }
+        // Facets are plain SQL on indexed columns, so they work with or
+        // without a query: `@week` alone is a legitimate thing to ask for.
+        var filters: [String] = []
+        var filterArgs: [Any] = []
+        for facet in facets {
+            let (clause, arg) = facet.clause
+            filters.append(clause)
+            if let arg { filterArgs.append(arg) }
+        }
+        let whereFilters = filters.isEmpty ? "" : " AND " + filters.joined(separator: " AND ")
+
         let q = query.trimmed
         if q.isEmpty, tags.isEmpty {
-            return clips("SELECT \(columns) FROM clips ORDER BY captured_at DESC LIMIT ?", [limit])
+            let sql = filters.isEmpty ? "" : " WHERE " + filters.joined(separator: " AND ")
+            return clips("SELECT \(columns) FROM clips\(sql) ORDER BY captured_at DESC LIMIT ?",
+                         filterArgs + [limit])
         }
         // A tag is a filter: it is required. A word is a clue: requiring every
         // one of them means a question phrased in one more word than the page
@@ -178,10 +260,14 @@ enum Index {
         let ranked = words.count > 1
         let order = ranked ? "bm25(fts, 0.0, 12.0, 6.0, 10.0, 8.0, 1.0), clips.captured_at DESC"
                            : "clips.captured_at DESC"
+        // The matched passage, cut by FTS5 around the words that matched, so
+        // the list can show *why* a clip is in it. Body first — that is where
+        // a match is least obvious — falling back to the reason.
+        let snippet = "snippet(fts, 5, '\u{2}', '\u{3}', '…', 12)"
         return clips("""
-            SELECT \(columns) FROM clips JOIN fts ON clips.path = fts.path
-            WHERE fts MATCH ? ORDER BY \(order) LIMIT ?
-            """, [required.joined(separator: " AND "), limit])
+            SELECT \(columns), \(snippet) FROM clips JOIN fts ON clips.path = fts.path
+            WHERE fts MATCH ?\(whereFilters) ORDER BY \(order) LIMIT ?
+            """, [required.joined(separator: " AND ")] + filterArgs + [limit])
     }
 
     /// The most recent clips, optionally of one tag: what an index page lists.
@@ -277,7 +363,7 @@ enum Index {
             out.append(Clip(path: text(0), title: text(1), url: url.isEmpty ? nil : url, source: text(3),
                             capturedAt: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 4)),
                             tags: text(5).split(separator: " ").map(String.init), why: text(6),
-                            body: "", bodyLoaded: false))
+                            match: text(7), body: "", bodyLoaded: false))
         }
         return out
     }

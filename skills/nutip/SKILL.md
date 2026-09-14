@@ -11,18 +11,24 @@ prints the folder, `nutip doctor` the whole setup.
 
 ## Answering from what they saved
 
-Search first, open two or three files, and quote the `why`. Never read the
+Search first, open two or three files, and quote the `why`. Every row carries
+a `match`: the passage that matched, cut around the words. Read it before
+deciding a file is worth opening — often it already answers. Never read the
 whole folder: the index lines already carry the date, title, source, tags and
 reason, which is usually enough to pick what is worth opening.
 
 ```sh
 nutip search "pricing #competitors" --json   # newest first; each row has an absolute `file`
+nutip search "@week postgres"                # filter by time, kind or domain
 nutip search claude                          # same, plain text
 nutip recent 20                              # what they kept lately
 nutip tags                                   # the tags they use
 ```
 
-`#tag` inside the query restricts to a tag. Tags keep their capitals and
+`#tag` inside the query restricts to a tag, and `@…` filters without words:
+`@today`, `@week`, `@month`, `@year`, `@links`, `@text`, or a domain
+(`@github.com`). `nutip filters` lists what exists — it is read from the clips
+themselves, so never guess one. Tags keep their capitals and
 accents but match without them: `#Veille`, `#veille` and `#veillé` are one tag.
 
 Pass the user's question as it is: words are OR'd and the best match comes

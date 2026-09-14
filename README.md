@@ -90,9 +90,20 @@ A small toast confirms, with **Undo** (⌘Z while it shows). Nothing to name,
 nothing to file.
 
 Press **←** from the palette, click **Browse**, or press **⌘F**, and it
-switches to **browse** mode: type to search everything you saved (title, note, tags, text, and `#tag`
-restricts to a tag), **↩** opens the file in your editor, **⌘↩** opens the
-original link, **⌘E** edits tags and note, **⌘⌫** deletes.
+switches to **browse** mode: type to search everything you saved — title,
+note, tags, keywords and page text. Each result shows the passage that
+matched, with your words in bold, so you pick without opening anything.
+
+- **`#`** filters by tag, **`@`** by anything else: `@today`, `@this week`,
+  `@links`, `@text`, or a domain — `@github.com`. The list of filters is read
+  from your clips, so a domain appears the day you first save it and leaves
+  with the last clip that used it. Nothing to configure, nothing to maintain.
+- **tab** takes the highlighted suggestion, **⌫** on an empty field drops the
+  last filter.
+- With an empty field, your tags are offered under it with their counts —
+  click one to start there.
+- **↩** opens the file in your editor, **⌘↩** opens the original link,
+  **⌘E** edits tags and note, **⌘⌫** deletes.
 
 <p align="center">
   <img src="docs/browse.png" width="760" alt="Browse mode: a #reading filter chip in the search field and the list of clips below">
@@ -183,6 +194,8 @@ The same binary is the CLI (`./build.sh --install` links it as `nutip`):
 ```sh
 nutip recent 10                     # newest clips
 nutip search "pricing #competitors" # full-text, #tag filters
+nutip search "@week postgres"       # @ filters: a span of time, links/text, a domain
+nutip filters                       # every @ filter available, read from your clips
 nutip search claude --json          # for scripts and agents, with an absolute file path
 nutip add https://example.com -t reading -w "the pricing table"
 nutip add https://example.com -x    # same, and read the page into the clip

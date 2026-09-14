@@ -214,6 +214,17 @@ extension URL {
     }
 }
 
+/// FTS5 marks the matched words with two control characters so the palette can
+/// draw them bold. Anywhere else — a terminal, JSON — they are noise.
+extension String {
+    static let matchOpen: Character = "\u{2}"
+    static let matchClose: Character = "\u{3}"
+    var plainMatch: String {
+        filter { $0 != String.matchOpen && $0 != String.matchClose }
+            .replacingOccurrences(of: "\n", with: " ").trimmed
+    }
+}
+
 // MARK: - Bundled resources
 
 /// Files that ship inside the app bundle (Readability.js, tomarkdown.js).

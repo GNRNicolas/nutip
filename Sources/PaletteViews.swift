@@ -98,6 +98,9 @@ final class ClipCell: NSTableCellView {
     static let id = NSUserInterfaceItemIdentifier("clip")
     private let title = NSTextField(labelWithString: "")
     private let meta = NSTextField(labelWithString: "")
+    /// The passage that matched, with the matched words in bold. Only a search
+    /// produces one, so the row is two lines tall until it appears.
+    private let match = NSTextField(labelWithString: "")
 
     init() {
         super.init(frame: .zero)
@@ -109,7 +112,11 @@ final class ClipCell: NSTableCellView {
         meta.textColor = .secondaryLabelColor
         meta.lineBreakMode = .byTruncatingTail
         meta.maximumNumberOfLines = 1
-        for v in [title, meta] {
+        match.font = .systemFont(ofSize: 11.5)
+        match.textColor = .tertiaryLabelColor
+        match.lineBreakMode = .byTruncatingTail
+        match.maximumNumberOfLines = 1
+        for v in [title, meta, match] {
             v.translatesAutoresizingMaskIntoConstraints = false
             addSubview(v)
         }
@@ -120,6 +127,9 @@ final class ClipCell: NSTableCellView {
             meta.leadingAnchor.constraint(equalTo: title.leadingAnchor),
             meta.trailingAnchor.constraint(equalTo: title.trailingAnchor),
             meta.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 4),
+            match.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+            match.trailingAnchor.constraint(equalTo: title.trailingAnchor),
+            match.topAnchor.constraint(equalTo: meta.bottomAnchor, constant: 3),
         ])
     }
 
@@ -133,5 +143,34 @@ final class ClipCell: NSTableCellView {
         var line = parts.joined(separator: " · ")
         if !clip.why.isEmpty { line += " · \(clip.why)" }
         meta.stringValue = line
+        match.attributedStringValue = ClipCell.highlighted(clip.match)
+        match.isHidden = clip.match.isEmpty
+    }
+
+    /// FTS5 wraps what it matched in two control characters. Between them the
+    /// text goes bold and takes the normal label colour: the eye lands on the
+    /// word it searched for, which is the whole point of showing the passage.
+    static func highlighted(_ raw: String) -> NSAttributedString {
+        let out = NSMutableAttributedString()
+        let plain: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11.5), .foregroundColor: NSColor.tertiaryLabelColor]
+        let bold: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold), .foregroundColor: NSColor.labelColor]
+        var emphasised = false
+        var buffer = ""
+        func flush() {
+            guard !buffer.isEmpty else { return }
+            out.append(NSAttributedString(string: buffer, attributes: emphasised ? bold : plain))
+            buffer = ""
+        }
+        for c in raw.replacingOccurrences(of: "\n", with: " ") {
+            switch c {
+            case String.matchOpen: flush(); emphasised = true
+            case String.matchClose: flush(); emphasised = false
+            default: buffer.append(c)
+            }
+        }
+        flush()
+        return out
     }
 }

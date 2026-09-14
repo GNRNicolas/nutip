@@ -42,14 +42,23 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     /// Browse: tags pinned as blue chips before the field, and the tag
     /// suggestions shown while the user types `#…`.
     private var activeTags: [String] = []
+    private var activeFacets: [Index.Facet] = []
     private var suggestions: [String] = []
+    private var facetSuggestions: [Index.Facet] = []
+    /// Tags offered under an empty search field, in the order shown.
+    private var starters: [String] = []
     private var suggesting: Bool {
         guard case .browse = mode else { return false }
-        return currentHashToken != nil
+        return currentHashToken != nil || currentAtToken != nil
     }
     /// The `#partial` the caret is on, if any.
-    private var currentHashToken: String? {
-        guard let range = field.stringValue.range(of: "#[^\\s#]*$", options: .regularExpression) else { return nil }
+    private var currentHashToken: String? { token(prefix: "#") }
+    /// The `@partial` the caret is on: a facet being picked.
+    private var currentAtToken: String? { token(prefix: "@") }
+
+    private func token(prefix: String) -> String? {
+        guard let range = field.stringValue.range(of: "\(prefix)[^\\s#@]*$", options: .regularExpression)
+        else { return nil }
         return String(field.stringValue[range].dropFirst())
     }
     private let chips = NSStackView()
@@ -71,6 +80,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private static let pad: CGFloat = 24
     private static let tagRowHeight: CGFloat = 30
     private static let clipRowHeight: CGFloat = 60
+    private static let matchRowHeight: CGFloat = 78
     private static let maxRows = 8
     private static let maxClipRows = 6
     /// Key codes of the digit row, 1 to 9, so tags answer to the physical key
@@ -358,7 +368,9 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         // Leaving browse: the pinned #tag chips belong to the search field,
         // not to the note, and there is no way to remove them from here.
         activeTags = []
+        activeFacets = []
         suggestions = []
+        facetSuggestions = []
         renderChips()
     }
 
@@ -490,14 +502,17 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private func resize() {
         let rows = table.numberOfRows
         if suggesting {
-            empty.stringValue = "No tag matches."
+            empty.stringValue = currentAtToken != nil ? "No filter matches." : "No tag matches."
         } else if case .browse = mode {
-            empty.stringValue = field.stringValue.trimmed.isEmpty ? "Nothing saved yet. Copy something, then press \(Hotkey.current.label)." : "No clips match."
+            empty.stringValue = field.stringValue.trimmed.isEmpty && activeFacets.isEmpty && activeTags.isEmpty
+                ? "Nothing saved yet. Copy something, then press \(Hotkey.current.label)."
+                : "No clips match. Try the other language, or ⌫ to drop a filter."
         } else {
             empty.stringValue = "No tags yet. Add some in Settings."
         }
         empty.isHidden = rows > 0
-        let rowHeight = showsTagRows ? Palette.tagRowHeight : Palette.clipRowHeight
+        let rowHeight = showsTagRows ? Palette.tagRowHeight
+            : (results.first?.match.isEmpty == false ? Palette.matchRowHeight : Palette.clipRowHeight)
         // Taller rows, so fewer of them: eight clip rows plus the chrome runs
         // past the bottom of a laptop screen.
         let visible = max(1, min(rows, showsTagRows ? Palette.maxRows : Palette.maxClipRows))
@@ -749,6 +764,22 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     /// Blue pills for the pinned tags, Slack-style.
     private func renderChips() {
         chips.views.forEach { $0.removeFromSuperview() }
+        // Browse, nothing typed, nothing pinned: the row that would be empty
+        // shows what there is to click instead. Opening a search on a blank
+        // field and a list of titles gives no idea of what the folder holds.
+        if case .browse = mode, activeTags.isEmpty, activeFacets.isEmpty, field.stringValue.trimmed.isEmpty {
+            let top = Array(Index.tagCounts().prefix(6))
+            starters = top.map(\.0)
+            for (i, entry) in top.enumerated() {
+                chips.addArrangedSubview(starter(tag: entry.0, count: entry.1, index: i))
+            }
+            chips.isHidden = starters.isEmpty
+            fieldGap.constant = starters.isEmpty ? -2 : 8
+            field.placeholderString = "Search clips…    # tag    @ filter"
+            return
+        }
+        starters = []
+        for facet in activeFacets { chips.addArrangedSubview(pill(facet.label, colour: .systemGray)) }
         for tag in activeTags {
             // A coloured container with the label inset: a bare label with a
             // background hugs its glyphs and descenders touch the edge.
@@ -771,22 +802,78 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             pill.setContentCompressionResistancePriority(.required, for: .horizontal)
             chips.addArrangedSubview(pill)
         }
-        chips.isHidden = activeTags.isEmpty
-        fieldGap.constant = activeTags.isEmpty ? -2 : 8
-        field.placeholderString = activeTags.isEmpty ? "Search clips… (# for tags)" : "Search in these tags…"
+        let noChips = activeTags.isEmpty && activeFacets.isEmpty
+        chips.isHidden = noChips
+        fieldGap.constant = noChips ? -2 : 8
+        field.placeholderString = noChips ? "Search clips…    # tag    @ filter" : "Search in these…"
+    }
+
+    /// An offer, not a state: outlined rather than filled, so it does not
+    /// look like a filter that is already on.
+    private func starter(tag: String, count: Int, index: Int) -> NSView {
+        let button = NSButton(title: "", target: self, action: #selector(starterClicked(_:)))
+        button.tag = index
+        button.isBordered = false
+        button.wantsLayer = true
+        button.layer?.cornerRadius = 6
+        button.layer?.borderWidth = 1
+        button.layer?.borderColor = NSColor.separatorColor.cgColor
+        let text = NSMutableAttributedString(string: "#\(tag)", attributes: [
+            .font: NSFont.systemFont(ofSize: 12.5, weight: .medium), .foregroundColor: NSColor.secondaryLabelColor])
+        text.append(NSAttributedString(string: "  \(count)", attributes: [
+            .font: NSFont.systemFont(ofSize: 11.5), .foregroundColor: NSColor.tertiaryLabelColor]))
+        button.attributedTitle = text
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        return button
+    }
+
+    @objc private func starterClicked(_ sender: NSButton) {
+        guard sender.tag < starters.count else { return }
+        activeTags.append(starters[sender.tag])
+        renderChips()
+        refreshBrowse()
+        focusField()
+    }
+
+    /// One chip. A facet is grey and a tag keeps the accent colour: the eye
+    /// has to tell "saved this week" from "tagged week" without reading.
+    private func pill(_ text: String, colour: NSColor) -> NSView {
+        let pill = NSView()
+        pill.wantsLayer = true
+        pill.layer?.backgroundColor = colour.cgColor
+        pill.layer?.cornerRadius = 6
+        let label = NSTextField(labelWithString: text)
+        label.font = .systemFont(ofSize: 13, weight: .medium)
+        label.textColor = .white
+        label.translatesAutoresizingMaskIntoConstraints = false
+        pill.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 8),
+            label.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -8),
+            label.topAnchor.constraint(equalTo: pill.topAnchor, constant: 3),
+            label.bottomAnchor.constraint(equalTo: pill.bottomAnchor, constant: -4),
+        ])
+        pill.setContentHuggingPriority(.required, for: .horizontal)
+        pill.setContentCompressionResistancePriority(.required, for: .horizontal)
+        return pill
     }
 
     /// Browse query without any `#…` token: those are chips, not words.
     private var searchText: String {
-        field.stringValue.replacingOccurrences(of: "#[^\\s#]*", with: "", options: .regularExpression).trimmed
+        field.stringValue.replacingOccurrences(of: "[#@][^\\s#@]*", with: "", options: .regularExpression).trimmed
     }
 
     private func refreshBrowse() {
         if let partial = currentHashToken {
+            facetSuggestions = []
             suggestions = Settings.tags.filter { !activeTags.containsTag($0) && (partial.isEmpty || $0.tagKey.hasPrefix(partial.tagKey)) }
+        } else if let partial = currentAtToken {
+            suggestions = []
+            facetSuggestions = Index.facets(matching: partial).filter { f in !activeFacets.contains(f) }
         } else {
             suggestions = []
-            results = Index.search(searchText, tags: activeTags)
+            facetSuggestions = []
+            results = Index.search(searchText, tags: activeTags, facets: activeFacets)
         }
         table.reloadData()
         table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -797,17 +884,24 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private func pickSuggestion() {
         guard suggesting else { return }
         let row = max(0, table.selectedRow)
-        guard row < suggestions.count else { return }
-        activeTags.append(suggestions[row])
-        field.stringValue = field.stringValue.replacingOccurrences(of: "#[^\\s#]*$", with: "", options: .regularExpression)
+        if currentAtToken != nil {
+            guard row < facetSuggestions.count else { return }
+            activeFacets.append(facetSuggestions[row])
+        } else {
+            guard row < suggestions.count else { return }
+            activeTags.append(suggestions[row])
+        }
+        field.stringValue = field.stringValue.replacingOccurrences(of: "[#@][^\\s#@]*$", with: "", options: .regularExpression)
         renderChips()
         refreshBrowse()
         focusField()
     }
 
     private func removeLastChip() {
-        guard !activeTags.isEmpty else { return }
-        activeTags.removeLast()
+        // Newest chip first, whichever kind it is.
+        if !activeFacets.isEmpty { activeFacets.removeLast() }
+        else if !activeTags.isEmpty { activeTags.removeLast() }
+        else { return }
         renderChips()
         refreshBrowse()
     }
@@ -849,6 +943,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
 
     func controlTextDidChange(_ obj: Notification) {
         guard case .browse = mode else { return }
+        renderChips()      // the starter row appears and disappears with the field
         refreshBrowse()
     }
 
@@ -857,11 +952,18 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private var showsTagRows: Bool { isTagMode || suggesting }
 
     func numberOfRows(in tableView: NSTableView) -> Int {
-        isTagMode ? tags.count : suggesting ? suggestions.count : results.count
+        if isTagMode { return tags.count }
+        if currentAtToken != nil { return facetSuggestions.count }
+        if suggesting { return suggestions.count }
+        return results.count
     }
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        showsTagRows ? Palette.tagRowHeight : Palette.clipRowHeight
+        if showsTagRows { return Palette.tagRowHeight }
+        // Three lines when the search has a passage to show, two when it does
+        // not: browsing the most recent clips should not leave a gap per row.
+        let hasMatch = row < results.count && !results[row].match.isEmpty
+        return hasMatch ? Palette.matchRowHeight : Palette.clipRowHeight
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -869,6 +971,11 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             let cell = tableView.makeView(withIdentifier: TagCell.id, owner: nil) as? TagCell ?? TagCell()
             let tag = tags[row]
             cell.set(number: row < 9 ? "\(row + 1)" : "", tag: tag, checked: checked.contains(tag.tagKey))
+            return cell
+        }
+        if currentAtToken != nil {
+            let cell = tableView.makeView(withIdentifier: TagCell.id, owner: nil) as? TagCell ?? TagCell()
+            cell.set(number: "@", tag: facetSuggestions[row].label, checked: false, hint: "tab")
             return cell
         }
         if suggesting {
