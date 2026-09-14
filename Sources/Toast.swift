@@ -43,22 +43,38 @@ final class Toast {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.isReleasedWhenClosed = false
 
+        // The same chrome as the palette, down to the wash: the toast is the
+        // palette's own answer, a second later. A different material read as a
+        // different app's notification.
         let background = NSVisualEffectView()
-        background.material = .hudWindow
+        background.material = .popover
+        background.blendingMode = .behindWindow
         background.state = .active
-        background.wantsLayer = true
-        background.layer?.cornerRadius = 12
-        background.layer?.cornerCurve = .continuous
-        background.layer?.masksToBounds = true
+        background.maskImage = PaletteShape.roundedMask(radius: 14)
         panel.contentView = background
+
+        let wash = NSBox()
+        wash.boxType = .custom
+        wash.borderWidth = 0
+        wash.fillColor = NSColor.windowBackgroundColor.withAlphaComponent(0.72)
+        wash.translatesAutoresizingMaskIntoConstraints = false
+        background.addSubview(wash)
+        NSLayoutConstraint.activate([
+            wash.leadingAnchor.constraint(equalTo: background.leadingAnchor),
+            wash.trailingAnchor.constraint(equalTo: background.trailingAnchor),
+            wash.topAnchor.constraint(equalTo: background.topAnchor),
+            wash.bottomAnchor.constraint(equalTo: background.bottomAnchor),
+        ])
         return panel
     }
 
     /// Checkmark, what was saved, and the Undo button with its shortcut.
     private func makeRow(text: String, detail: String) -> NSStackView {
-        let icon = NSImageView(image: NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: nil)!)
-        icon.symbolConfiguration = .init(pointSize: 20, weight: .medium)
-        icon.contentTintColor = .systemGreen
+        let icon = NSImageView(image: NSApp.applicationIconImage)
+        icon.imageScaling = .scaleProportionallyUpOrDown
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.widthAnchor.constraint(equalToConstant: 30).isActive = true
+        icon.heightAnchor.constraint(equalToConstant: 30).isActive = true
 
         let title = NSTextField(labelWithString: text)
         title.font = .systemFont(ofSize: 13, weight: .semibold)
@@ -85,8 +101,8 @@ final class Toast {
         let row = NSStackView(views: [icon, labels, button])
         row.orientation = .horizontal
         row.alignment = .centerY
-        row.spacing = 12
-        row.edgeInsets = NSEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
+        row.spacing = 11
+        row.edgeInsets = NSEdgeInsets(top: 11, left: 12, bottom: 11, right: 14)
         row.translatesAutoresizingMaskIntoConstraints = false
         return row
     }

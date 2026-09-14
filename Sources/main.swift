@@ -100,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
     /// the one thing worth showing.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         Log.write("reopen: opening the palette")
-        browse()
+        clipNow()
         return true
     }
 
@@ -164,12 +164,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
     @objc private func clipNow() {
         guard Settings.folder != nil else { preferences.show(firstRun: true); return }
         if palette.isVisible { palette.hide(); return }
-        let ctx = Capture.current()
-        if ctx.isEmpty {
-            palette.show(.browse)
-        } else {
-            palette.show(.capture(ctx))
-        }
+        // Always the capture palette, even with an empty clipboard: the hotkey
+        // means "I want to save something", and landing in browse instead was
+        // a different app answering a different question. Browse is one key
+        // away (⌘F, or ←) and says so on screen.
+        palette.show(.capture(Capture.current()))
     }
 
     @objc private func browse() {

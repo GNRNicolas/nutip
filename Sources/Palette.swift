@@ -70,8 +70,9 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private static let width: CGFloat = 720
     private static let pad: CGFloat = 24
     private static let tagRowHeight: CGFloat = 30
-    private static let clipRowHeight: CGFloat = 46
+    private static let clipRowHeight: CGFloat = 60
     private static let maxRows = 8
+    private static let maxClipRows = 6
     /// Key codes of the digit row, 1 to 9, so tags answer to the physical key
     /// on every layout (AZERTY needs shift for the digit itself).
     private static let digitKeys: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
@@ -368,7 +369,11 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         var sub = ctx.source
         if let url = ctx.url { sub += " · \(url)" }
         else if !ctx.selection.isEmpty { sub += " · \(ctx.selection.excerpt(90))" }
-        if ctx.isStale {
+        if ctx.isEmpty {
+            clipTitle.stringValue = "Nothing copied"
+            sub = "Copy something with ⌘C, then press the hotkey again. ← or ⌘F searches what you saved."
+            clipMeta.textColor = .secondaryLabelColor
+        } else if ctx.isStale {
             sub = "Same clipboard as your last clip. Copy something new, or save it again."
             clipMeta.textColor = .systemOrange
         } else if let url = ctx.url, let dup = Index.existing(url: url) {
@@ -493,7 +498,9 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         }
         empty.isHidden = rows > 0
         let rowHeight = showsTagRows ? Palette.tagRowHeight : Palette.clipRowHeight
-        let visible = max(1, min(rows, Palette.maxRows))
+        // Taller rows, so fewer of them: eight clip rows plus the chrome runs
+        // past the bottom of a laptop screen.
+        let visible = max(1, min(rows, showsTagRows ? Palette.maxRows : Palette.maxClipRows))
         scrollHeight.constant = rows == 0 ? 56 : CGFloat(visible) * rowHeight + 4
         panel.layoutIfNeeded()
         panel.setContentSize(NSSize(width: Palette.width, height: panel.contentView!.fittingSize.height))

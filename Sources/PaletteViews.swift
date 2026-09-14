@@ -116,10 +116,10 @@ final class ClipCell: NSTableCellView {
         NSLayoutConstraint.activate([
             title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 26),
             title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -26),
-            title.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+            title.topAnchor.constraint(equalTo: topAnchor, constant: 11),
             meta.leadingAnchor.constraint(equalTo: title.leadingAnchor),
             meta.trailingAnchor.constraint(equalTo: title.trailingAnchor),
-            meta.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 2),
+            meta.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 4),
         ])
     }
 

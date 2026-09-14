@@ -89,8 +89,8 @@ over whatever you are doing:
 A small toast confirms, with **Undo** (⌘Z while it shows). Nothing to name,
 nothing to file.
 
-Press the hotkey with an empty clipboard, or click **Browse**, and the
-palette opens in **browse** mode: type to search everything you saved (title, note, tags, text, and `#tag`
+Press **←** from the palette, click **Browse**, or press **⌘F**, and it
+switches to **browse** mode: type to search everything you saved (title, note, tags, text, and `#tag`
 restricts to a tag), **↩** opens the file in your editor, **⌘↩** opens the
 original link, **⌘E** edits tags and note, **⌘⌫** deletes.
 
