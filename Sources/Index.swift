@@ -50,7 +50,7 @@ enum Index {
         return sync()
     }
 
-    static func close() {
+    private static func close() {
         if let db { sqlite3_close(db) }
         db = nil
     }
@@ -67,7 +67,7 @@ enum Index {
     /// their modification date and size. A folder of ten thousand clips costs
     /// one directory listing, not ten thousand file reads.
     @discardableResult
-    static func sync() -> Bool {
+    private static func sync() -> Bool {
         guard db != nil else { return false }
         let disk = Store.stamps()
         var known: [String: Stamp] = [:]
@@ -175,13 +175,6 @@ enum Index {
     static func month(_ month: String) -> [Clip] {
         guard db != nil else { return Store.all().filter { $0.path.hasPrefix(month) }.reversed() }
         return clips("SELECT \(columns) FROM clips WHERE month = ? ORDER BY captured_at ASC", [month])
-    }
-
-    static var total: Int { count("SELECT COUNT(*) FROM clips", []) }
-
-    static func count(tag: String) -> Int {
-        guard db != nil else { return Store.all().filter { $0.tags.contains(tag) }.count }
-        return count("SELECT COUNT(*) FROM clips WHERE (' ' || tags || ' ') LIKE ?", ["% \(tag) %"])
     }
 
     /// Months that hold clips, newest first, with how many each holds.

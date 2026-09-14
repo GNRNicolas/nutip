@@ -16,6 +16,7 @@ that were rejected.
 | `Capture.swift` | `CaptureContext`, `Capture` | The clipboard, and the page it was copied from |
 | `Extractor.swift` | `Extractor` | Hidden `WKWebView` + Readability.js + `tomarkdown.js` |
 | `Palette.swift` | `Palette` | The floating panel and its three modes |
+| `PaletteViews.swift` | `KeyPanel`, `TagCell`, `ClipCell` | The panel subclass and the rows |
 | `Toast.swift` | `Toast` | Saved confirmation with Undo |
 | `Preferences.swift` | `Preferences` | Onboarding and settings, one window |
 | `Shortcuts.swift` | `Hotkey`, `GlobalHotkey` | The global shortcut (Carbon) |
@@ -161,9 +162,9 @@ false), which is what `KeyPanel` exists for; without it no key reaches the
 palette at all. Rounded corners are an `NSVisualEffectView.maskImage`: the
 behind-window blur is drawn by the window server and ignores a layer's
 `cornerRadius`.
-Keys are handled by one local event monitor in `Palette.handle`, in this
-order: keys that mean the same everywhere (esc, ↑↓, return), then the
-mode's own. The capture flow is arrows only: ↑↓ pick a tag, ← goes to the
+Keys are handled by one local event monitor. `Palette.handle` reads the event
+into a `Key` and asks, in order, `handleEverywhere` (esc, ↑↓, return, ⌘F, ⌘O)
+then the mode's own handler. The capture flow is arrows only: ↑↓ pick a tag, ← goes to the
 note (and back to the list from the start of the note), → saves (from the
 end of the note). Digits are read by **key code** (the physical digit row),
 so `1` and `⌘1` toggle the first tag on an AZERTY keyboard without Shift.

@@ -71,55 +71,68 @@ enum CLI {
         return true
     }
 
-    private static func add(_ rest: [String]) {
+    /// `nutip add <text|url> [-t tag]... [-w why] [--title t] [-x]`
+    private struct AddOptions {
         var tags: [String] = []
         var why = ""
         var title = ""
-        var wantsExtract = false
-        var content: [String] = []
-        var i = 0
-        while i < rest.count {
-            switch rest[i] {
-            case "--tag", "-t": if i + 1 < rest.count { tags.append(rest[i + 1]); i += 1 }
-            case "--why", "-w": if i + 1 < rest.count { why = rest[i + 1]; i += 1 }
-            case "--title": if i + 1 < rest.count { title = rest[i + 1]; i += 1 }
-            case "--extract", "-x": wantsExtract = true
-            default: content.append(rest[i])
+        var extractPage = false
+        var words: [String] = []
+
+        init(_ args: [String]) {
+            var i = 0
+            while i < args.count {
+                switch args[i] {
+                case "--tag", "-t": if i + 1 < args.count { tags.append(args[i + 1]); i += 1 }
+                case "--why", "-w": if i + 1 < args.count { why = args[i + 1]; i += 1 }
+                case "--title": if i + 1 < args.count { title = args[i + 1]; i += 1 }
+                case "--extract", "-x": extractPage = true
+                default: words.append(args[i])
+                }
+                i += 1
             }
-            i += 1
         }
-        var text = content.joined(separator: " ")
+    }
+
+    private static func add(_ rest: [String]) {
+        let options = AddOptions(rest)
+        var text = options.words.joined(separator: " ")
         if text.isEmpty || text == "-" {
             text = String(data: FileHandle.standardInput.readDataToEndOfFile(), encoding: .utf8) ?? ""
         }
-        guard !text.trimmed.isEmpty else { fail("nothing to add") }
+        text = text.trimmed
+        guard !text.isEmpty else { fail("nothing to add") }
         Index.open()
+        let isURL = text.isURL
         do {
-            let isURL = text.trimmed.isURL
-            let clip = try Store.add(title: title.isEmpty ? (isURL ? (URL(string: text.trimmed)?.domain ?? text) : text.excerpt(70)) : title,
-                                     url: isURL ? text.trimmed : nil, source: "CLI",
-                                     tags: tags, why: why, body: isURL ? "" : text)
-            // The GUI extracts in the background after the palette closes; the
-            // CLI has nowhere to hide it, so it is opt-in and blocking.
-            if wantsExtract, isURL, let url = URL(string: text.trimmed) {
-                let page = page(at: url)
-                if let page, !page.markdown.trimmed.isEmpty {
-                    var updated = clip
-                    // Title first, then the text: `append` re-reads the file,
-                    // so saving the title afterwards would drop the body.
-                    if title.isEmpty, !page.title.trimmed.isEmpty, page.title.trimmed != clip.title {
-                        updated.title = page.title.trimmed
-                        try? Store.save(updated)
-                    }
-                    try? Store.append(page.markdown, to: updated)
-                } else {
-                    FileHandle.standardError.write("nutip: saved, but could not read the page\n".data(using: .utf8)!)
-                }
+            let fallbackTitle = isURL ? (URL(string: text)?.domain ?? text) : text.excerpt(70)
+            let clip = try Store.add(title: options.title.isEmpty ? fallbackTitle : options.title,
+                                     url: isURL ? text : nil, source: "CLI",
+                                     tags: options.tags, why: options.why, body: isURL ? "" : text)
+            if options.extractPage, isURL, let url = URL(string: text) {
+                readPage(url, into: clip, keepTitle: !options.title.isEmpty)
             }
             print(clip.fileURL?.path ?? clip.path)
         } catch {
             fail(error.localizedDescription)
         }
+    }
+
+    /// The GUI extracts in the background after the palette closes; a command
+    /// has nowhere to hide it, so this is opt-in and blocking.
+    private static func readPage(_ url: URL, into clip: Clip, keepTitle: Bool) {
+        guard let page = page(at: url), !page.markdown.trimmed.isEmpty else {
+            FileHandle.standardError.write("nutip: saved, but could not read the page\n".data(using: .utf8)!)
+            return
+        }
+        var updated = clip
+        // Title first, then the text: `append` re-reads the file, so saving the
+        // title afterwards would drop the body.
+        if !keepTitle, !page.title.trimmed.isEmpty, page.title.trimmed != clip.title {
+            updated.title = page.title.trimmed
+            try? Store.save(updated)
+        }
+        try? Store.append(page.markdown, to: updated)
     }
 
     /// Trashes a clip and brings the indexes back in line. The path may be

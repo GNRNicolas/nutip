@@ -40,7 +40,9 @@ pointing at the upstream repo.
 | How much page text a clip keeps | `Settings.bodyLimit` |
 | Which pasteboard types reveal the source page | `Capture.sourcePage` |
 | HTML → Markdown rules | `Resources/tomarkdown.js` |
-| Palette keys and hints | `Palette.handle` and the `hints.stringValue` lines in `Palette.show` |
+| Palette keys | `Palette.handleEverywhere`, `handleTagMode`, `handleBrowse` |
+| Palette wording per mode | `Palette.showCapture`, `showEdit`, `showBrowse` |
+| Palette layout | the `make…` functions in `Palette`, assembled by `assemble(in:)` |
 | Palette size and row heights | the `static let`s at the top of `Palette` |
 | Toast duration | `Toast.show`, the `Timer` |
 | CLI commands | `CLI.run` |

@@ -14,6 +14,25 @@ final class Toast {
         dismiss()
         onUndo = undo
 
+        let panel = makePanel()
+        let background = panel.contentView as! NSVisualEffectView
+        let row = makeRow(text: text, detail: detail)
+        background.addSubview(row)
+        NSLayoutConstraint.activate([
+            row.leadingAnchor.constraint(equalTo: background.leadingAnchor),
+            row.trailingAnchor.constraint(equalTo: background.trailingAnchor),
+            row.topAnchor.constraint(equalTo: background.topAnchor),
+            row.bottomAnchor.constraint(equalTo: background.bottomAnchor),
+        ])
+        panel.setContentSize(background.fittingSize)
+        present(panel)
+
+        self.panel = panel
+        undoKey.register(.commandZ) { [weak self] in self?.undoPressed() }
+        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { [weak self] _ in self?.dismiss() }
+    }
+
+    private func makePanel() -> NSPanel {
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 64),
                             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.level = .statusBar
@@ -32,7 +51,11 @@ final class Toast {
         background.layer?.cornerCurve = .continuous
         background.layer?.masksToBounds = true
         panel.contentView = background
+        return panel
+    }
 
+    /// Checkmark, what was saved, and the Undo button with its shortcut.
+    private func makeRow(text: String, detail: String) -> NSStackView {
         let icon = NSImageView(image: NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: nil)!)
         icon.symbolConfiguration = .init(pointSize: 20, weight: .medium)
         icon.contentTintColor = .systemGreen
@@ -48,6 +71,7 @@ final class Toast {
         labels.orientation = .vertical
         labels.alignment = .leading
         labels.spacing = 1
+        labels.widthAnchor.constraint(lessThanOrEqualToConstant: 240).isActive = true
 
         let button = NSButton(title: "", target: self, action: #selector(undoPressed))
         button.bezelStyle = .roundRect
@@ -64,16 +88,11 @@ final class Toast {
         row.spacing = 12
         row.edgeInsets = NSEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
         row.translatesAutoresizingMaskIntoConstraints = false
-        background.addSubview(row)
-        NSLayoutConstraint.activate([
-            row.leadingAnchor.constraint(equalTo: background.leadingAnchor),
-            row.trailingAnchor.constraint(equalTo: background.trailingAnchor),
-            row.topAnchor.constraint(equalTo: background.topAnchor),
-            row.bottomAnchor.constraint(equalTo: background.bottomAnchor),
-            labels.widthAnchor.constraint(lessThanOrEqualToConstant: 240),
-        ])
-        panel.setContentSize(background.fittingSize)
+        return row
+    }
 
+    /// Bottom-right of the main screen, faded in.
+    private func present(_ panel: NSPanel) {
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let frame = screen.visibleFrame
         panel.setFrameOrigin(NSPoint(x: frame.maxX - panel.frame.width - 16, y: frame.minY + 16))
@@ -83,9 +102,6 @@ final class Toast {
             ctx.duration = 0.18
             panel.animator().alphaValue = 1
         }
-        self.panel = panel
-        undoKey.register(.commandZ) { [weak self] in self?.undoPressed() }
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { [weak self] _ in self?.dismiss() }
     }
 
     @objc private func undoPressed() {

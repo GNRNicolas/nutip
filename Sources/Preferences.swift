@@ -34,7 +34,13 @@ final class Preferences: NSObject, NSWindowDelegate, NSTokenFieldDelegate {
         window.delegate = self
         self.window = window
 
-        // Header: icon, name, one sentence.
+        let separator = NSBox()
+        separator.boxType = .separator
+        install([makeHeader(), separator, makeForm(), makeFooter(firstRun: firstRun)], in: window)
+    }
+
+    /// Icon, name, and the one sentence that says what the app does.
+    private func makeHeader() -> NSView {
         let icon = NSImageView(image: NSApp.applicationIconImage)
         icon.imageScaling = .scaleProportionallyUpOrDown
         icon.translatesAutoresizingMaskIntoConstraints = false
@@ -54,54 +60,19 @@ final class Preferences: NSObject, NSWindowDelegate, NSTokenFieldDelegate {
         header.orientation = .horizontal
         header.alignment = .top
         header.spacing = 16
+        return header
+    }
 
-        // Folder row.
-        folderField.font = .systemFont(ofSize: 13)
-        folderField.lineBreakMode = .byTruncatingMiddle
-        folderField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let choose = NSButton(title: "Choose…", target: self, action: #selector(chooseFolder))
-        choose.bezelStyle = .rounded
-        let folderRow = NSStackView(views: [folderField, choose])
-        folderRow.orientation = .horizontal
-        folderRow.spacing = 8
-        let folderHint = hint("One Markdown file per clip, plus INDEX.md. Your Obsidian vault, a Git repo, iCloud Drive: any folder.")
-
-        // Tags: a token field. Type a name, press return or comma, it becomes
-        // a token; backspace removes one. The native macOS way to edit a list of words.
-        tagsField.delegate = self
-        tagsField.tokenStyle = .rounded
-        tagsField.tokenizingCharacterSet = CharacterSet(charactersIn: ",\n")
-        tagsField.font = .systemFont(ofSize: 13)
-        tagsField.placeholderString = "Type a tag and press return"
-        tagsField.cell?.wraps = true
-        tagsField.cell?.isScrollable = false
-        tagsField.translatesAutoresizingMaskIntoConstraints = false
-        tagsField.heightAnchor.constraint(greaterThanOrEqualToConstant: 56).isActive = true
-        tagsField.target = self
-        tagsField.action = #selector(tagsEdited)
-        let tagsBox = tagsField
-        let tagsHint = hint("Return or comma adds a tag, backspace removes one. The first nine answer to keys 1–9 in the palette.")
-
-        // How it works: one line, because there is nothing to configure.
-        let howRow = NSTextField(wrappingLabelWithString: "Copy anything (⌘C), then press the hotkey. Nutip reads the clipboard: text, a link, or text copied from a web page together with the page it came from. No permission to grant, ever.")
-        howRow.font = .systemFont(ofSize: 13)
-        // Shortcut & login.
-        hotkeyPopup.removeAllItems()
-        for key in Hotkey.presets { hotkeyPopup.addItem(withTitle: key.label) }
-        hotkeyPopup.target = self
-        hotkeyPopup.action = #selector(hotkeyChanged)
-        loginCheck.target = self
-        loginCheck.action = #selector(loginChanged)
-
-        // Form grid: label column right-aligned, control column fills.
+    /// The form: label column right-aligned, control column fills the rest.
+    private func makeForm() -> NSGridView {
         let grid = NSGridView(views: [
-            [label("Folder:"), folderRow],
-            [NSGridCell.emptyContentView, folderHint],
-            [label("Tags:"), tagsBox],
-            [NSGridCell.emptyContentView, tagsHint],
-            [label("How it works:"), howRow],
-            [label("Shortcut:"), hotkeyPopup],
-            [NSGridCell.emptyContentView, loginCheck],
+            [label("Folder:"), folderRow()],
+            [NSGridCell.emptyContentView, hint("One Markdown file per clip, plus INDEX.md. Your Obsidian vault, a Git repo, iCloud Drive: any folder.")],
+            [label("Tags:"), tagsBox()],
+            [NSGridCell.emptyContentView, hint("Return or comma adds a tag, backspace removes one. The first nine answer to keys 1–9 in the palette.")],
+            [label("How it works:"), howItWorks()],
+            [label("Shortcut:"), hotkeyControl()],
+            [NSGridCell.emptyContentView, loginControl()],
         ])
         grid.rowSpacing = 6
         grid.columnSpacing = 12
@@ -113,18 +84,71 @@ final class Preferences: NSObject, NSWindowDelegate, NSTokenFieldDelegate {
         grid.cell(atColumnIndex: 0, rowIndex: 5).yPlacement = .center
         // Breathing room between groups, tight between a control and its hint.
         for row in [1, 3, 4] { grid.row(at: row).bottomPadding = 14 }
+        return grid
+    }
 
-        // Footer.
+    private func folderRow() -> NSStackView {
+        folderField.font = .systemFont(ofSize: 13)
+        folderField.lineBreakMode = .byTruncatingMiddle
+        folderField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let choose = NSButton(title: "Choose…", target: self, action: #selector(chooseFolder))
+        choose.bezelStyle = .rounded
+        let row = NSStackView(views: [folderField, choose])
+        row.orientation = .horizontal
+        row.spacing = 8
+        return row
+    }
+
+    /// A token field: type a name, press return or comma, it becomes a token;
+    /// backspace removes one. The native macOS way to edit a list of words.
+    private func tagsBox() -> NSTokenField {
+        tagsField.delegate = self
+        tagsField.tokenStyle = .rounded
+        tagsField.tokenizingCharacterSet = CharacterSet(charactersIn: ",\n")
+        tagsField.font = .systemFont(ofSize: 13)
+        tagsField.placeholderString = "Type a tag and press return"
+        tagsField.cell?.wraps = true
+        tagsField.cell?.isScrollable = false
+        tagsField.translatesAutoresizingMaskIntoConstraints = false
+        tagsField.heightAnchor.constraint(greaterThanOrEqualToConstant: 56).isActive = true
+        tagsField.target = self
+        tagsField.action = #selector(tagsEdited)
+        return tagsField
+    }
+
+    /// One line, because there is nothing to configure.
+    private func howItWorks() -> NSTextField {
+        let row = NSTextField(wrappingLabelWithString: "Copy anything (⌘C), then press the hotkey. Nutip reads the clipboard: text, a link, or text copied from a web page together with the page it came from. No permission to grant, ever.")
+        row.font = .systemFont(ofSize: 13)
+        return row
+    }
+
+    private func hotkeyControl() -> NSPopUpButton {
+        hotkeyPopup.removeAllItems()
+        for key in Hotkey.presets { hotkeyPopup.addItem(withTitle: key.label) }
+        hotkeyPopup.target = self
+        hotkeyPopup.action = #selector(hotkeyChanged)
+        return hotkeyPopup
+    }
+
+    private func loginControl() -> NSButton {
+        loginCheck.target = self
+        loginCheck.action = #selector(loginChanged)
+        return loginCheck
+    }
+
+    private func makeFooter(firstRun: Bool) -> NSStackView {
         let done = NSButton(title: firstRun ? "Start Clipping" : "Done", target: self, action: #selector(close))
         done.bezelStyle = .rounded
         done.keyEquivalent = "\r"
         let footer = NSStackView(views: [NSView(), done])
         footer.orientation = .horizontal
+        return footer
+    }
 
-        let separator = NSBox()
-        separator.boxType = .separator
-
-        let stack = NSStackView(views: [header, separator, grid, footer])
+    /// Stacks the rows with the window's margins and sizes the window to fit.
+    private func install(_ rows: [NSView], in window: NSWindow) {
+        let stack = NSStackView(views: rows)
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = Preferences.margin
@@ -132,9 +156,7 @@ final class Preferences: NSObject, NSWindowDelegate, NSTokenFieldDelegate {
                                         bottom: Preferences.margin, right: Preferences.margin)
         stack.translatesAutoresizingMaskIntoConstraints = false
         let inner = Preferences.width - 2 * Preferences.margin
-        for v in [header, separator, grid, footer] as [NSView] {
-            v.widthAnchor.constraint(equalToConstant: inner).isActive = true
-        }
+        for row in rows { row.widthAnchor.constraint(equalToConstant: inner).isActive = true }
 
         let content = NSView()
         content.addSubview(stack)

@@ -4,12 +4,6 @@
 // clip's tags and note, and browsing/searching what was saved.
 import AppKit
 
-/// A borderless NSPanel refuses to become key by default, and a panel that is
-/// not key receives no keyboard events at all. This is the whole subclass.
-final class KeyPanel: NSPanel {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { false }
-}
 
 enum PaletteMode {
     case capture(CaptureContext)
@@ -87,6 +81,15 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
                          styleMask: [.borderless, .nonactivatingPanel],
                          backing: .buffered, defer: false)
         super.init()
+        let background = configurePanel()
+        configureLabels()
+        configureList()
+        assemble(in: background)
+    }
+
+    /// The window: floating, non-activating, rounded, and washed so text stays
+    /// readable over anything. Returns the view everything else goes into.
+    private func configurePanel() -> NSVisualEffectView {
         panel.level = .floating
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -103,7 +106,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         background.state = .active
         // Behind-window blur ignores a layer's cornerRadius: the blur is drawn
         // by the window server, so the rounding has to be a mask image.
-        background.maskImage = Palette.roundedMask(radius: 14)
+        background.maskImage = PaletteShape.roundedMask(radius: 14)
         panel.contentView = background
         // Blur alone lets whatever is behind bleed through; a wash of the
         // window colour on top keeps the text readable on any background.
@@ -119,14 +122,21 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             wash.topAnchor.constraint(equalTo: background.topAnchor),
             wash.bottomAnchor.constraint(equalTo: background.bottomAnchor),
         ])
+        return background
+    }
 
+    /// Type and behaviour of every piece of text. Where they sit is `assemble`.
+    private func configureLabels() {
         titleLabel.font = .systemFont(ofSize: 16, weight: .semibold)
-        titleLabel.lineBreakMode = .byTruncatingTail
-        titleLabel.maximumNumberOfLines = 1
         subtitleLabel.font = .systemFont(ofSize: 12)
         subtitleLabel.textColor = .secondaryLabelColor
-        subtitleLabel.lineBreakMode = .byTruncatingTail
-        subtitleLabel.maximumNumberOfLines = 1
+        clipTitle.font = .systemFont(ofSize: 14, weight: .semibold)
+        clipMeta.font = .systemFont(ofSize: 12)
+        clipMeta.textColor = .secondaryLabelColor
+        for label in [titleLabel, subtitleLabel, clipTitle, clipMeta] {
+            label.lineBreakMode = .byTruncatingTail
+            label.maximumNumberOfLines = 1
+        }
 
         field.isBordered = false
         field.isBezeled = false
@@ -137,26 +147,6 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         field.cell?.isScrollable = true
         field.cell?.wraps = false
         field.cell?.usesSingleLineMode = true
-
-        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("main"))
-        column.resizingMask = .autoresizingMask
-        table.addTableColumn(column)
-        table.headerView = nil
-        table.dataSource = self
-        table.delegate = self
-        table.backgroundColor = .clear
-        table.selectionHighlightStyle = .regular
-        table.intercellSpacing = NSSize(width: 0, height: 0)
-        table.style = .plain
-        table.allowsEmptySelection = true
-        table.target = self
-        table.action = #selector(rowClicked)
-        table.doubleAction = #selector(rowDoubleClicked)
-        table.refusesFirstResponder = true
-        scroll.documentView = table
-        scroll.drawsBackground = false
-        scroll.hasVerticalScroller = true
-        scroll.autohidesScrollers = true
 
         empty.font = .systemFont(ofSize: 13)
         empty.textColor = .tertiaryLabelColor
@@ -179,60 +169,74 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         gear.target = self
         gear.action = #selector(openSettings)
         gear.setContentHuggingPriority(.required, for: .horizontal)
-        hints.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        buttons.orientation = .horizontal
-        buttons.spacing = 8
-        buttons.setContentHuggingPriority(.required, for: .horizontal)
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(NSLayoutConstraint.Priority(1), for: .horizontal)
-        spacer.setContentCompressionResistancePriority(NSLayoutConstraint.Priority(1), for: .horizontal)
-        hints.setContentHuggingPriority(.required, for: .horizontal)
+    }
 
+    private func configureList() {
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("main"))
+        column.resizingMask = .autoresizingMask
+        table.addTableColumn(column)
+        table.headerView = nil
+        table.dataSource = self
+        table.delegate = self
+        table.backgroundColor = .clear
+        table.selectionHighlightStyle = .regular
+        table.intercellSpacing = NSSize(width: 0, height: 0)
+        table.style = .plain
+        table.allowsEmptySelection = true
+        table.target = self
+        table.action = #selector(rowClicked)
+        table.doubleAction = #selector(rowDoubleClicked)
+        table.refusesFirstResponder = true
+        scroll.documentView = table
+        scroll.drawsBackground = false
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+    }
+
+    /// Icon, name and folder path, with the settings gear pushed to the right.
+    private func makeHeader() -> NSStackView {
         let headerText = NSStackView(views: [titleLabel, subtitleLabel])
         headerText.orientation = .vertical
         headerText.alignment = .leading
         headerText.spacing = 2
-        // The app icon sits left of the name in browse mode only; a capture
-        // shows the page or text being saved, not Nutip.
         logo.image = NSApp.applicationIconImage
         logo.imageScaling = .scaleProportionallyUpOrDown
         logo.translatesAutoresizingMaskIntoConstraints = false
         logo.widthAnchor.constraint(equalToConstant: 44).isActive = true
         logo.heightAnchor.constraint(equalToConstant: 44).isActive = true
-        let headerSpacer = NSView()
-        headerSpacer.setContentHuggingPriority(NSLayoutConstraint.Priority(1), for: .horizontal)
-        let header = NSStackView(views: [logo, headerText, headerSpacer, gear])
+        let header = NSStackView(views: [logo, headerText, spacer(), gear])
         header.orientation = .horizontal
         header.alignment = .centerY
         header.spacing = 12
         header.edgeInsets = NSEdgeInsets(top: 18, left: Palette.pad, bottom: 10, right: Palette.pad)
+        // The name block yields before the gear does: a long folder path
+        // truncates instead of pushing the gear off the edge.
+        headerText.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        for label in [titleLabel, subtitleLabel] {
+            label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        }
+        gear.setContentCompressionResistancePriority(.required, for: .horizontal)
+        return header
+    }
 
-        // What is about to be saved: title, then source / link / warnings.
-        clipTitle.font = .systemFont(ofSize: 14, weight: .semibold)
-        clipTitle.lineBreakMode = .byTruncatingTail
-        clipTitle.maximumNumberOfLines = 1
-        clipMeta.font = .systemFont(ofSize: 12)
-        clipMeta.textColor = .secondaryLabelColor
-        clipMeta.lineBreakMode = .byTruncatingTail
-        clipMeta.maximumNumberOfLines = 1
+    /// What is about to be saved: title, then source, link or warning.
+    private func makeClipBlock() -> NSStackView {
         clipBlock.setViews([clipTitle, clipMeta], in: .leading)
         clipBlock.orientation = .vertical
         clipBlock.alignment = .leading
         clipBlock.spacing = 2
         clipBlock.edgeInsets = NSEdgeInsets(top: 10, left: Palette.pad, bottom: 10, right: Palette.pad)
+        // A long title must give way, not widen the panel: low resistance, hard right edge.
         for label in [clipTitle, clipMeta] {
             label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             label.trailingAnchor.constraint(equalTo: clipBlock.trailingAnchor, constant: -Palette.pad).isActive = true
         }
-        // A long title must give way, not widen the panel: low resistance, hard right edge.
-        // The name block yields before the gear does: a long folder path
-        // truncates instead of pushing the gear off the edge.
-        for label in [titleLabel, subtitleLabel] {
-            label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        }
-        headerText.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        gear.setContentCompressionResistancePriority(.required, for: .horizontal)
+        return clipBlock
+    }
 
+    /// The note in a capture, the search field in browse, with the pinned
+    /// `#tag` chips in front of it.
+    private func makeFieldBox() -> NSView {
         let fieldBox = NSView()
         fieldGap = field.leadingAnchor.constraint(equalTo: chips.trailingAnchor, constant: -2)
         chips.orientation = .horizontal
@@ -250,22 +254,37 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             field.topAnchor.constraint(equalTo: fieldBox.topAnchor, constant: 8),
             field.bottomAnchor.constraint(equalTo: fieldBox.bottomAnchor, constant: -10),
         ])
+        return fieldBox
+    }
 
-        let line = NSBox()
-        line.boxType = .separator
-
-        // Footer: key hints on the left, the actions as small buttons on the
-        // right. Everything a key does, a click does.
-        let footer = NSStackView(views: [hints, spacer, buttons])
+    /// Key hints on the left, the actions as small buttons on the right.
+    /// Everything a key does, a click does.
+    private func makeFooter() -> NSStackView {
+        hints.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        hints.setContentHuggingPriority(.required, for: .horizontal)
+        buttons.orientation = .horizontal
+        buttons.spacing = 8
+        buttons.setContentHuggingPriority(.required, for: .horizontal)
+        let footer = NSStackView(views: [hints, spacer(), buttons])
         footer.orientation = .horizontal
         footer.alignment = .centerY
         footer.spacing = 10
         footer.edgeInsets = NSEdgeInsets(top: 12, left: Palette.pad, bottom: Palette.pad + 6, right: Palette.pad)
+        return footer
+    }
 
-        let topLine = NSBox()
-        topLine.boxType = .separator
+    /// One fixed-width column: header, clip, field, list, footer, separated by
+    /// hairlines. Every row is pinned to the panel width so nothing reflows.
+    private func assemble(in background: NSVisualEffectView) {
+        let header = makeHeader()
+        let clip = makeClipBlock()
+        let fieldBox = makeFieldBox()
+        let footer = makeFooter()
+        let topLine = separatorLine()
+        let line = separatorLine()
         fieldLine.boxType = .separator
-        let stack = NSStackView(views: [header, topLine, clipBlock, fieldLine, fieldBox, line, scroll, footer])
+
+        let stack = NSStackView(views: [header, topLine, clip, fieldLine, fieldBox, line, scroll, footer])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 0
@@ -276,15 +295,10 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             stack.trailingAnchor.constraint(equalTo: background.trailingAnchor),
             stack.topAnchor.constraint(equalTo: background.topAnchor),
             stack.bottomAnchor.constraint(equalTo: background.bottomAnchor),
-            header.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            topLine.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            fieldLine.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            clipBlock.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            fieldBox.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            line.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            scroll.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            footer.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
+        for row in [header, topLine, clip, fieldLine, fieldBox, line, scroll, footer] {
+            row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
         scrollHeight = scroll.heightAnchor.constraint(equalToConstant: 200)
         scrollHeight.isActive = true
         // Sits over the (empty) list; a scroll view keeps its own subviews on top.
@@ -295,20 +309,22 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         ])
     }
 
+    private func separatorLine() -> NSBox {
+        let box = NSBox()
+        box.boxType = .separator
+        return box
+    }
+
+    /// An empty view that takes the slack in a row, so what follows is flush right.
+    private func spacer() -> NSView {
+        let view = NSView()
+        view.setContentHuggingPriority(NSLayoutConstraint.Priority(1), for: .horizontal)
+        view.setContentCompressionResistancePriority(NSLayoutConstraint.Priority(1), for: .horizontal)
+        return view
+    }
+
     private var scrollHeight: NSLayoutConstraint!
 
-    /// A stretchable rounded rectangle for `NSVisualEffectView.maskImage`.
-    private static func roundedMask(radius: CGFloat) -> NSImage {
-        let side = radius * 2 + 1
-        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
-            NSColor.black.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
-            return true
-        }
-        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
-        image.resizingMode = .stretch
-        return image
-    }
 
     // MARK: Showing
 
@@ -318,6 +334,17 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         if case .capture(let ctx) = self.mode, case .browse = mode, panel.isVisible { cameFrom = ctx }
         if case .capture = mode { cameFrom = nil }
         self.mode = mode
+        resetChrome()
+        switch mode {
+        case .capture(let ctx): showCapture(ctx)
+        case .edit(let clip): showEdit(clip)
+        case .browse: showBrowse()
+        }
+        present()
+    }
+
+    /// What every mode starts from, before it fills in its own text.
+    private func resetChrome() {
         existing = nil
         logo.isHidden = false
         titleLabel.stringValue = "Nutip"
@@ -330,60 +357,63 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         activeTags = []
         suggestions = []
         renderChips()
-        switch mode {
-        case .capture(let ctx):
-            tags = Settings.tags
-            checked = []
-            clipTitle.stringValue = ctx.suggestedTitle
-            var sub = ctx.source
-            if let url = ctx.url { sub += " · \(url)" }
-            else if !ctx.selection.isEmpty { sub += " · \(ctx.selection.excerpt(90))" }
-            if ctx.isStale {
-                sub = "Same clipboard as your last clip. Copy something new, or save it again."
-            }
-            if ctx.isStale {
-                clipMeta.textColor = .systemOrange
-            } else if let url = ctx.url, let dup = Index.existing(url: url) {
-                existing = dup
-                sub = "Already saved \(Dates.relative(dup.capturedAt))"
-                    + (dup.tags.isEmpty ? "" : " · " + dup.tags.map { "#\($0)" }.joined(separator: " "))
-                    + " · ⌘O opens it"
-                clipMeta.textColor = .systemOrange
-            } else {
-                clipMeta.textColor = .secondaryLabelColor
-            }
-            clipMeta.stringValue = sub
-            field.stringValue = ""
-            field.placeholderString = "Why are you saving this? (optional, press ←)"
-            hints.stringValue = "↑↓ pick · ↩ or 1–9 toggle · ← note"
-            setButtons([("Browse", "⌘F", #selector(browsePressed), false), ("Cancel", "esc", #selector(cancelPressed), false),
-                        ("Save", "→", #selector(savePressed), true)])
-        case .edit(let clip):
-            tags = (Settings.tags + clip.tags).uniqued()
-            checked = Set(clip.tags)
-            clipTitle.stringValue = clip.title
+    }
+
+    private func showCapture(_ ctx: CaptureContext) {
+        tags = Settings.tags
+        checked = []
+        clipTitle.stringValue = ctx.suggestedTitle
+        var sub = ctx.source
+        if let url = ctx.url { sub += " · \(url)" }
+        else if !ctx.selection.isEmpty { sub += " · \(ctx.selection.excerpt(90))" }
+        if ctx.isStale {
+            sub = "Same clipboard as your last clip. Copy something new, or save it again."
+            clipMeta.textColor = .systemOrange
+        } else if let url = ctx.url, let dup = Index.existing(url: url) {
+            existing = dup
+            sub = "Already saved \(Dates.relative(dup.capturedAt))"
+                + (dup.tags.isEmpty ? "" : " · " + dup.tags.map { "#\($0)" }.joined(separator: " "))
+                + " · ⌘O opens it"
+            clipMeta.textColor = .systemOrange
+        } else {
             clipMeta.textColor = .secondaryLabelColor
-            clipMeta.stringValue = "Editing · \(clip.source) · \(Dates.relative(clip.capturedAt))"
-            field.stringValue = clip.why
-            field.placeholderString = "Why did you save this? (optional)"
-            hints.stringValue = "↑↓ pick · ↩ or 1–9 toggle · ← note"
-            setButtons([("Back", "esc", #selector(cancelPressed), false), ("Save", "→", #selector(savePressed), true)])
-        case .browse:
-            clipBlock.isHidden = true
-            fieldLine.isHidden = true
-            field.stringValue = ""
-            field.placeholderString = "Search clips… (# for tags)"
-            activeTags = []
-            suggestions = []
-            renderChips()
-            hints.stringValue = "type to search · # then tab picks a tag"
-            var specs: [(String, String, Selector, Bool)] = []
-            if cameFrom != nil { specs.append(("Back", "esc", #selector(cancelPressed), false)) }
-            specs += [("Delete", "⌘⌫", #selector(deletePressed), false), ("Edit", "⌘E", #selector(editPressed), false),
-                      ("Open Link", "⌘↩", #selector(openLinkPressed), false), ("Open File", "↩", #selector(openPressed), true)]
-            setButtons(specs)
-            results = Index.search("", tags: activeTags)
         }
+        clipMeta.stringValue = sub
+        field.stringValue = ""
+        field.placeholderString = "Why are you saving this? (optional, press ←)"
+        hints.stringValue = "↑↓ pick · ↩ or 1–9 toggle · ← note"
+        setButtons([("Browse", "⌘F", #selector(browsePressed), false), ("Cancel", "esc", #selector(cancelPressed), false),
+                    ("Save", "→", #selector(savePressed), true)])
+    }
+
+    private func showEdit(_ clip: Clip) {
+        tags = (Settings.tags + clip.tags).uniqued()
+        checked = Set(clip.tags)
+        clipTitle.stringValue = clip.title
+        clipMeta.textColor = .secondaryLabelColor
+        clipMeta.stringValue = "Editing · \(clip.source) · \(Dates.relative(clip.capturedAt))"
+        field.stringValue = clip.why
+        field.placeholderString = "Why did you save this? (optional)"
+        hints.stringValue = "↑↓ pick · ↩ or 1–9 toggle · ← note"
+        setButtons([("Back", "esc", #selector(cancelPressed), false), ("Save", "→", #selector(savePressed), true)])
+    }
+
+    private func showBrowse() {
+        clipBlock.isHidden = true
+        fieldLine.isHidden = true
+        field.stringValue = ""
+        renderChips()   // sets the placeholder, with or without chips
+        hints.stringValue = "type to search · # then tab picks a tag"
+        var specs: [(String, String, Selector, Bool)] = []
+        if cameFrom != nil { specs.append(("Back", "esc", #selector(cancelPressed), false)) }
+        specs += [("Delete", "⌘⌫", #selector(deletePressed), false), ("Edit", "⌘E", #selector(editPressed), false),
+                  ("Open Link", "⌘↩", #selector(openLinkPressed), false), ("Open File", "↩", #selector(openPressed), true)]
+        setButtons(specs)
+        results = Index.search("", tags: activeTags)
+    }
+
+    /// Size the list, put the panel on screen, and start listening for keys.
+    private func present() {
         if !panel.isVisible { anchorTop = nil }
         table.reloadData()
         table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -516,85 +546,121 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         monitor = nil
     }
 
-    /// Returns true when the event was consumed.
+    /// Returns true when the event was consumed. Keys that mean the same
+    /// thing everywhere come first, then the ones the mode owns.
     private func handle(_ event: NSEvent) -> Bool {
-        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let cmd = flags.contains(.command)
-        let key = event.keyCode
-        let chars = event.charactersIgnoringModifiers ?? ""
+        let key = Key(event)
+        if handleEverywhere(key) { return true }
+        return isTagMode ? handleTagMode(key) : handleBrowse(key)
+    }
 
-        // Keys that mean the same thing everywhere.
-        switch key {
-        case 53: // esc
+    /// One keystroke, read the way the palette cares about it.
+    private struct Key {
+        let code: UInt16
+        let chars: String
+        let command: Bool
+        let control: Bool
+
+        init(_ event: NSEvent) {
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            code = event.keyCode
+            chars = event.charactersIgnoringModifiers ?? ""
+            command = flags.contains(.command)
+            control = flags.contains(.control)
+        }
+
+        /// Position of this key in the physical digit row, if it is one.
+        var digit: Int? { Palette.digitKeys.firstIndex(of: code) }
+        var isPrintable: Bool {
+            guard !command, !control, let scalar = chars.unicodeScalars.first else { return false }
+            return !CharacterSet.controlCharacters.contains(scalar)
+        }
+
+        static let escape: UInt16 = 53
+        static let up: UInt16 = 126
+        static let down: UInt16 = 125
+        static let left: UInt16 = 123
+        static let right: UInt16 = 124
+        static let tab: UInt16 = 48
+        static let space: UInt16 = 49
+        static let delete: UInt16 = 51
+    }
+
+    private func handleEverywhere(_ key: Key) -> Bool {
+        switch key.code {
+        case Key.escape:
             goBack()
             return true
-        case 126: moveSelection(-1); return true
-        case 125: moveSelection(1); return true
+        case Key.up: moveSelection(-1); return true
+        case Key.down: moveSelection(1); return true
         case 36, 76: // return, enter: toggles a tag while picking, opens in browse
-            if isTagMode { toggleSelected() } else if suggesting { pickSuggestion() } else { confirm(command: cmd) }
+            if isTagMode { toggleSelected() } else if suggesting { pickSuggestion() } else { confirm(command: key.command) }
             return true
         default: break
         }
-
-        if cmd, chars == "f", isTagMode {
+        guard key.command else { return false }
+        if key.chars == "f", isTagMode {
             show(.browse)
             return true
         }
-        if cmd, chars == "o", let existing {
+        if key.chars == "o", let existing {
             open(existing)
             hide()
             return true
         }
-        if cmd, chars == "q" { NSApp.terminate(nil); return true }
+        if key.chars == "q" { NSApp.terminate(nil); return true }
+        return false
+    }
 
-        if isTagMode {
-            if cmd, let n = Palette.digitKeys.firstIndex(of: key) {
-                toggle(index: n)
-                return true
-            }
-            // ← and → : the note and Save, so the whole flow is arrows only.
-            if key == 124, !cmd { // →
-                if fieldIsEditing, let editor = field.currentEditor(), editor.selectedRange.location < editor.string.count { return false }
-                confirm(command: false)
-                return true
-            }
-            if key == 123, !cmd { // ←
-                if fieldIsEditing {
-                    guard let editor = field.currentEditor(), editor.selectedRange.location == 0 else { return false }
-                    panel.makeFirstResponder(nil)
-                } else {
-                    focusField()
-                }
-                return true
-            }
-            if key == 48 { // tab: toggle between list and note
-                if fieldIsEditing { panel.makeFirstResponder(nil) } else { focusField() }
-                return true
-            }
-            guard !fieldIsEditing else { return false }
-            if key == 49 { toggleSelected(); return true }
-            if let n = Palette.digitKeys.firstIndex(of: key), !cmd {
-                toggle(index: n)
-                return true
-            }
-            // Any other printable character starts the note.
-            if !cmd, !flags.contains(.control), let scalar = chars.unicodeScalars.first,
-               !CharacterSet.controlCharacters.contains(scalar) {
-                focusField()
-                field.currentEditor()?.insertText(chars)
-                return true
-            }
-            return false
+    /// Capture and edit: pick tags, write the note, save. Arrows only, so the
+    /// hand never leaves them: ← is the note, → saves.
+    private func handleTagMode(_ key: Key) -> Bool {
+        if key.command, let n = key.digit {
+            toggle(index: n)
+            return true
         }
+        if key.code == Key.right, !key.command {
+            // Only from the end of the note, so → still moves the caret inside it.
+            if fieldIsEditing, let editor = field.currentEditor(), editor.selectedRange.location < editor.string.count { return false }
+            confirm(command: false)
+            return true
+        }
+        if key.code == Key.left, !key.command {
+            if fieldIsEditing {
+                guard let editor = field.currentEditor(), editor.selectedRange.location == 0 else { return false }
+                panel.makeFirstResponder(nil)
+            } else {
+                focusField()
+            }
+            return true
+        }
+        if key.code == Key.tab {
+            if fieldIsEditing { panel.makeFirstResponder(nil) } else { focusField() }
+            return true
+        }
+        guard !fieldIsEditing else { return false }
+        if key.code == Key.space { toggleSelected(); return true }
+        if let n = key.digit, !key.command {
+            toggle(index: n)
+            return true
+        }
+        // Any other printable character starts the note.
+        if key.isPrintable {
+            focusField()
+            field.currentEditor()?.insertText(key.chars)
+            return true
+        }
+        return false
+    }
 
-        // Browse mode.
-        if key == 48 { if suggesting { pickSuggestion() }; return true }              // tab
-        if key == 51, !cmd, field.stringValue.isEmpty, !activeTags.isEmpty {        // ⌫ on empty field
+    private func handleBrowse(_ key: Key) -> Bool {
+        if key.code == Key.tab { if suggesting { pickSuggestion() }; return true }
+        if key.code == Key.delete, !key.command, field.stringValue.isEmpty, !activeTags.isEmpty {
             removeLastChip()
             return true
         }
-        if cmd, chars == "e", let clip = selectedClip { show(.edit(clip)); return true }
-        if cmd, key == 51, let clip = selectedClip { // ⌘⌫
+        if key.command, key.chars == "e", let clip = selectedClip { show(.edit(clip)); return true }
+        if key.command, key.code == Key.delete, let clip = selectedClip { // ⌘⌫
             confirmDelete(clip)
             return true
         }
@@ -781,113 +847,4 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     }
 
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { PaletteRow() }
-}
-
-// MARK: - Rows
-
-private final class PaletteRow: NSTableRowView {
-    override func drawSelection(in dirtyRect: NSRect) {
-        guard selectionHighlightStyle != .none else { return }
-        let rect = bounds.insetBy(dx: 14, dy: 1)
-        NSColor.controlAccentColor.withAlphaComponent(0.18).setFill()
-        NSBezierPath(roundedRect: rect, xRadius: 7, yRadius: 7).fill()
-    }
-}
-
-private final class TagCell: NSTableCellView {
-    static let id = NSUserInterfaceItemIdentifier("tag")
-    private let number = NSTextField(labelWithString: "")
-    private let name = NSTextField(labelWithString: "")
-    private let check = NSImageView()
-    private let hintLabel = NSTextField(labelWithString: "")
-
-    init() {
-        super.init(frame: .zero)
-        identifier = TagCell.id
-        hintLabel.font = .systemFont(ofSize: 10.5, weight: .medium)
-        hintLabel.textColor = .tertiaryLabelColor
-        hintLabel.isHidden = true
-        hintLabel.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(hintLabel)
-        number.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-        number.textColor = .tertiaryLabelColor
-        number.alignment = .center
-        name.font = .systemFont(ofSize: 14)
-        check.symbolConfiguration = .init(pointSize: 13, weight: .semibold)
-        check.contentTintColor = .controlAccentColor
-        for v in [number, name, check] {
-            v.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(v)
-        }
-        NSLayoutConstraint.activate([
-            number.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 26),
-            number.widthAnchor.constraint(equalToConstant: 16),
-            number.centerYAnchor.constraint(equalTo: centerYAnchor),
-            name.leadingAnchor.constraint(equalTo: number.trailingAnchor, constant: 10),
-            name.centerYAnchor.constraint(equalTo: centerYAnchor),
-            check.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -28),
-            check.centerYAnchor.constraint(equalTo: centerYAnchor),
-            hintLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -28),
-            hintLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
-            name.trailingAnchor.constraint(lessThanOrEqualTo: check.leadingAnchor, constant: -8),
-        ])
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    func set(number n: String, tag: String, checked: Bool, hint: String? = nil) {
-        number.stringValue = n
-        name.stringValue = tag
-        if let hint {
-            check.image = nil
-            hintLabel.stringValue = hint
-            hintLabel.isHidden = false
-        } else {
-            hintLabel.isHidden = true
-            check.image = NSImage(systemSymbolName: checked ? "checkmark.circle.fill" : "circle", accessibilityDescription: nil)
-            check.contentTintColor = checked ? .controlAccentColor : .quaternaryLabelColor
-        }
-    }
-}
-
-private final class ClipCell: NSTableCellView {
-    static let id = NSUserInterfaceItemIdentifier("clip")
-    private let title = NSTextField(labelWithString: "")
-    private let meta = NSTextField(labelWithString: "")
-
-    init() {
-        super.init(frame: .zero)
-        identifier = ClipCell.id
-        title.font = .systemFont(ofSize: 14, weight: .medium)
-        title.lineBreakMode = .byTruncatingTail
-        title.maximumNumberOfLines = 1
-        meta.font = .systemFont(ofSize: 11.5)
-        meta.textColor = .secondaryLabelColor
-        meta.lineBreakMode = .byTruncatingTail
-        meta.maximumNumberOfLines = 1
-        for v in [title, meta] {
-            v.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(v)
-        }
-        NSLayoutConstraint.activate([
-            title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 26),
-            title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -26),
-            title.topAnchor.constraint(equalTo: topAnchor, constant: 6),
-            meta.leadingAnchor.constraint(equalTo: title.leadingAnchor),
-            meta.trailingAnchor.constraint(equalTo: title.trailingAnchor),
-            meta.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 2),
-        ])
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    func set(_ clip: Clip) {
-        title.stringValue = clip.title
-        var parts = [Dates.relative(clip.capturedAt)]
-        if !clip.domain.isEmpty { parts.append(clip.domain) } else { parts.append(clip.source) }
-        if !clip.tags.isEmpty { parts.append(clip.tags.map { "#\($0)" }.joined(separator: " ")) }
-        var line = parts.joined(separator: " · ")
-        if !clip.why.isEmpty { line += " · \(clip.why)" }
-        meta.stringValue = line
-    }
 }
