@@ -69,7 +69,7 @@ NUTIP_DIR=/tmp/clips build/Nutip.app/Contents/MacOS/Nutip   # the GUI, same fold
 work on `tomarkdown.js`.
 
 Log: `~/Library/Logs/nutip.log`. Every refused hotkey, failed extraction and
-AppleScript error lands there with a reason.
+index error lands there with a reason.
 
 ## Things that bite
 

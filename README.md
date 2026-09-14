@@ -89,11 +89,13 @@ over whatever you are doing:
   page's real title and says it has no text, instead of being filed under the
   domain it came from.
 
-A small toast confirms, with **Undo** (⌘Z while it shows). Nothing to name,
+A small toast confirms, with **Undo** (⌘Z while it shows). If you saved
+without a reason, it also offers **Why? (⌘Y)** — the note field, already open,
+on the clip you just saved. It is the one thing nothing can reconstruct later,
+and the second after saving is when it costs the least. Nothing to name,
 nothing to file.
 
-Press **←** from the palette, click **Browse**, or press **⌘F**, and it
-switches to **browse** mode: type to search everything you saved — title,
+Click **Browse** or press **⌘F**, and it switches to **browse** mode: type to search everything you saved — title,
 note, tags, keywords and page text. Each result shows the passage that
 matched, with your words in bold, so you pick without opening anything.
 
@@ -184,10 +186,10 @@ read by one:
   filler words are dropped, the best match comes first, and only a `#tag` is
   required.
 - It still matches words, not meaning, so **the language matters**. Measured on
-  a 19-clip corpus of real pages: 5 French questions out of 10 found their clip;
-  the same 5, re-asked in English, found it every time. An agent that re-asks in
-  the language the page was written in turns 5/10 into 10/10, and `nutip search`
-  says so itself when it comes back empty.
+  a 258-clip corpus of real articles, mostly English: 4 French questions out of
+  12 found their clip; the same 12, re-asked in English, found it every time. An
+  agent that re-asks in the language the page was written in turns 4/12 into
+  12/12, and `nutip search` says so itself when it comes back empty.
 
 ### Command line
 
@@ -204,6 +206,7 @@ nutip add https://example.com -x    # same, and read the page into the clip
 nutip rm 2026-09/2026-09-13-thing.md   # move a clip to the Trash, indexes updated
 nutip extract https://example.com   # what a page becomes, on stdout
 nutip reindex                       # rebuild INDEX.md, tags/ and the search index
+nutip doctor                        # folder, hotkey, tags, where the log is
 nutip enrich                        # give keywords to the clips that have none (--dry-run to preview)
 nutip folder ~/notes/clips          # move the clips folder; no argument prints it
 nutip tags add veille               # what the palette offers; nutip tags rm to drop one

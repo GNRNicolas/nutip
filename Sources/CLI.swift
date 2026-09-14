@@ -17,8 +17,8 @@ enum CLI {
       nutip folder [path]                the clips folder; with a path, move to it
       nutip reindex                      rebuild INDEX.md, tags/*.md and the search index
       nutip doctor                       permissions, folder, hotkey
-      nutip filters
-      nutip enrich [--dry-run]
+      nutip filters                      every @ filter there is, read from your clips
+      nutip enrich [--dry-run]           give keywords to the clips that have none
       nutip --help
 
     NUTIP_DIR=<folder> overrides the clips folder for one command.
@@ -35,7 +35,7 @@ enum CLI {
         case "--help", "-h", "help":
             print(usage)
         case "doctor":
-            print("app        \(Bundle.main.bundlePath)")
+            print("app        \(Resources.appPath)")
             print("folder     \(Settings.folder?.path ?? "(none)")")
             print("hotkey     \(Hotkey.current.label)")
             print("permissions none needed: copy, then press the hotkey")

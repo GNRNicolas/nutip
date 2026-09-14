@@ -8,8 +8,9 @@ import Foundation
 enum Hotkey: String, CaseIterable {
     case optionCommandS, controlOptionS, controlOptionSpace, optionSpace, shiftCommandSpace, controlCommandN
     case commandZ   // used by the toast only, never a preset
+    case commandY   // likewise: "add the reason I just skipped"
 
-    static var presets: [Hotkey] { allCases.filter { $0 != .commandZ } }
+    static var presets: [Hotkey] { allCases.filter { $0 != .commandZ && $0 != .commandY } }
 
     static var current: Hotkey {
         get { Hotkey(rawValue: Settings.defaults.string(forKey: "hotkey") ?? "") ?? .optionCommandS }
@@ -21,6 +22,7 @@ enum Hotkey: String, CaseIterable {
         // Letters are looked up in the current layout: key code 6 is Z on
         // ANSI and W on AZERTY, and ⌘W is not an undo anyone wants.
         case .commandZ:           return ("⌘Z", KeyCodes.forCharacter("z") ?? 6, cmdKey)
+        case .commandY:           return ("⌘Y", KeyCodes.forCharacter("y") ?? 16, cmdKey)
         case .optionCommandS:     return ("⌥⌘S", KeyCodes.forCharacter("s") ?? 1, optionKey | cmdKey)
         case .controlOptionS:     return ("⌃⌥S", KeyCodes.forCharacter("s") ?? 1, controlKey | optionKey)
         case .controlOptionSpace: return ("⌃⌥Space", 49, controlKey | optionKey)

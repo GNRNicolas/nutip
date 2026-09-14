@@ -18,7 +18,7 @@ whole folder: the index lines already carry the date, title, source, tags and
 reason, which is usually enough to pick what is worth opening.
 
 ```sh
-nutip search "pricing #competitors" --json   # newest first; each row has an absolute `file`
+nutip search "pricing #competitors" --json   # best match first; each row has an absolute `file`
 nutip search "@week postgres"                # filter by time, kind or domain
 nutip search claude                          # same, plain text
 nutip recent 20                              # what they kept lately

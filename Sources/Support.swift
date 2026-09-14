@@ -257,6 +257,16 @@ enum Resources {
         return nil
     }
 
+    /// Where the app actually is, whatever path it was invoked through.
+    /// `Bundle.main.bundlePath` answers /opt/homebrew/bin under the symlink.
+    static var appPath: String {
+        guard let path = Bundle.main.executablePath else { return "(unknown)" }
+        let exe = URL(fileURLWithPath: path).resolvingSymlinksInPath()
+        let contents = exe.deletingLastPathComponent().deletingLastPathComponent()
+        return contents.lastPathComponent == "Contents"
+            ? contents.deletingLastPathComponent().path : exe.path
+    }
+
     /// Contents/Resources as seen from the executable, plus the executable's
     /// own folder, which is where a plain `swiftc` build leaves them.
     private static var searchPaths: [URL] {

@@ -340,7 +340,10 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
 
     var isVisible: Bool { panel.isVisible }
 
-    func show(_ mode: PaletteMode) {
+    /// `focusingNote` puts the caret straight in the reason field. Used by the
+    /// toast's "Why?": the clip is already saved and the only thing left to do
+    /// is type the sentence that was skipped.
+    func show(_ mode: PaletteMode, focusingNote: Bool = false) {
         if case .capture(let ctx) = self.mode, case .browse = mode, panel.isVisible { cameFrom = ctx }
         if case .capture = mode { cameFrom = nil }
         self.mode = mode
@@ -351,6 +354,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         case .browse: showBrowse()
         }
         present()
+        if focusingNote { focusField() }
     }
 
     /// What every mode starts from, before it fills in its own text.
@@ -380,7 +384,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         else if !ctx.selection.isEmpty { sub += " · \(ctx.selection.excerpt(90))" }
         if ctx.isEmpty {
             clipTitle.stringValue = "Nothing copied"
-            sub = "Copy something with ⌘C, then press the hotkey again. ← or ⌘F searches what you saved."
+            sub = "Copy something with ⌘C, then press the hotkey again. ⌘F searches what you saved."
             clipMeta.textColor = .secondaryLabelColor
         } else if ctx.isStale {
             sub = "Same clipboard as your last clip. Copy something new, or save it again."

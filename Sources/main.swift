@@ -183,7 +183,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
             lastClip = clip
             Capture.lastSavedChangeCount = ctx.changeCount
             let detail = tags.isEmpty ? clip.path : tags.map { "#\($0)" }.joined(separator: " ") + " · " + clip.path
-            toast.show("Saved “\(clip.title.excerpt(40))”", detail: detail) { [weak self] in self?.undoLast() }
+            // A clip saved without a reason is the one that cannot be used
+            // later, and the moment it is cheapest to add is the second after
+            // saving — the page is still on screen and the thought is still
+            // there. Offered, never asked for.
+            let addReason: (() -> Void)? = why.trimmed.isEmpty
+                ? { [weak self] in
+                    guard let self, let saved = try? Store.read(path: clip.path) else { return }
+                    self.palette.show(.edit(saved), focusingNote: true)
+                  }
+                : nil
+            toast.show("Saved “\(clip.title.excerpt(40))”", detail: detail,
+                       reason: addReason) { [weak self] in self?.undoLast() }
             Log.write("saved \(clip.path)")
             if let url = ctx.url.flatMap(URL.init(string:)) { extract(url, into: clip) }
         } catch {

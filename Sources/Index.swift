@@ -158,7 +158,7 @@ enum Index {
             case .domain:
                 return ("clips.domain = ?", value)
             case .kind:
-                return (value == "link" ? "clips.url != ''" : "clips.url = ''", nil)
+                return (value == "links" ? "clips.url != ''" : "clips.url = ''", nil)
             }
         }
 
@@ -183,7 +183,7 @@ enum Index {
             Facet(kind: .when, value: "week", label: "this week"),
             Facet(kind: .when, value: "month", label: "this month"),
             Facet(kind: .when, value: "year", label: "this year"),
-            Facet(kind: .kind, value: "link", label: "links"),
+            Facet(kind: .kind, value: "links", label: "links"),
             Facet(kind: .kind, value: "text", label: "text"),
         ]
         // A domain saved once is not a filter, it is that one clip: offering

@@ -21,19 +21,21 @@ that were rejected.
 | `Preferences.swift` | `Preferences` | Onboarding and settings, one window |
 | `Shortcuts.swift` | `Hotkey`, `GlobalHotkey` | The global shortcut (Carbon) |
 | `Updater.swift` | `Updater` | Daily version check against GitHub |
-| `CLI.swift` | `CLI` | `nutip search|recent|add|extract|reindex` |
+| `CLI.swift` | `CLI` | `nutip search|recent|add|rm|extract|filters|enrich|tags|folder|reindex|doctor` |
 | `main.swift` | `AppDelegate` | Menu bar, wiring, the save flow |
 
 The save flow is: hotkey → `Capture.current()` reads the clipboard →
 `Palette.show(.capture)` → user
-presses return → `Store.add` writes the file, `Toast` appears → if there was a
+presses → → `Store.add` writes the file, `Toast` appears → if there was a
 URL, `Extractor` fetches it and `Store.append` completes the file. The
 palette is gone before the network is touched.
 
 ## The folder is the product
 
 Everything Nutip knows is in the Markdown files. The SQLite index is a cache
-rebuilt from them at every launch (`Index.open` → `rebuild`), and lives in
+brought back in line with them at every launch (`Index.open` → `sync`, which
+reads only the files whose size or date changed) and rebuilt from scratch only
+on `nutip reindex`. It lives in
 `~/Library/Application Support/Nutip/`, keyed by folder path. Delete it and
 nothing is lost. This is what lets the user keep the folder in Git, Obsidian,
 iCloud or Dropbox without Nutip being involved.
@@ -99,7 +101,8 @@ length the link is worth more than the text.
 
 ### Generated files carry a marker
 
-`INDEX.md`, `tags/*.md` and the folder `README.md` start with an HTML
+`INDEX.md`, `AGENTS.md`, the folder `README.md`, `tags/*.md` and
+`YYYY-MM/INDEX.md` start with an HTML
 comment. It says "do not edit" to a human, and it is how Nutip recognises
 its own files: a `tags/x.md` without the marker is never deleted, a `README`
 without it is never overwritten. The user can take over any of them.
@@ -178,7 +181,7 @@ palette at all. Rounded corners are an `NSVisualEffectView.maskImage`: the
 behind-window blur is drawn by the window server and ignores a layer's
 `cornerRadius`.
 Keys are handled by one local event monitor. `Palette.handle` reads the event
-into a `Key` and asks, in order, `handleEverywhere` (esc, ↑↓, return, ⌘F, ⌘O)
+into a `Key` and asks, in order, `handleEverywhere` (esc, ↑↓, return, ⌘F, ⌘O, ⌘Q)
 then the mode's own handler. The capture flow is arrows only: ↑↓ pick a tag, ← goes to the
 note (and back to the list from the start of the note), → saves (from the
 end of the note). A highlighted row is not a ticked one, which cost a user
