@@ -32,16 +32,28 @@ folder and your first tags.
 
 ### With an agent
 
-Paste this into Claude Code, Codex, Cursor or whatever you use:
+Copy this into Claude Code, Codex, Cursor or whatever you use, and let it do
+the whole thing:
 
-> Install Nutip for me on this Mac. Clone https://github.com/GNRNicolas/nutip
-> into a folder I keep (not a temp dir), run `./build.sh --install` there, and
-> tell me if the Xcode command line tools are missing instead of guessing.
-> Then link its agent skill so you can use it later:
-> `mkdir -p ~/.claude/skills && ln -sfn "$PWD/skills/nutip" ~/.claude/skills/nutip`
-> (skip this if I do not use Claude Code). Finish by running `nutip doctor` and
-> telling me the hotkey, the clips folder, and the one gesture: copy, then
-> press the hotkey.
+```text
+Install Nutip on my Mac. It is a macOS menu-bar app, no dependencies, no account.
+
+1. Clone https://github.com/GNRNicolas/nutip into a folder I keep (not /tmp or a
+   temp dir). Ask me where if you are unsure.
+2. Run ./build.sh --install in it. It needs the Xcode command line tools: if they
+   are missing, tell me to run xcode-select --install rather than guessing.
+3. If I use Claude Code, link the skill that ships with it so you know how to use
+   Nutip later:
+   mkdir -p ~/.claude/skills && ln -sfn "$PWD/skills/nutip" ~/.claude/skills/nutip
+4. Run `nutip doctor` and tell me, in three lines: where my clips will be saved,
+   what the hotkey is, and that the gesture is copy with ⌘C, then the hotkey.
+
+Nutip asks for no macOS permission, so nothing should prompt me. If a step fails,
+show me the exact error instead of working around it.
+```
+
+On first launch Nutip asks for a folder and your first tags, and then lives in
+the menu bar.
 
 The repo ships a [`nutip` skill](skills/nutip/SKILL.md) so an agent knows how
 to search your clips, save into them and keep them tidy. The clips folder also
