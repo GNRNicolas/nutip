@@ -181,7 +181,10 @@ Keys are handled by one local event monitor. `Palette.handle` reads the event
 into a `Key` and asks, in order, `handleEverywhere` (esc, ↑↓, return, ⌘F, ⌘O)
 then the mode's own handler. The capture flow is arrows only: ↑↓ pick a tag, ← goes to the
 note (and back to the list from the start of the note), → saves (from the
-end of the note). Digits are read by **key code** (the physical digit row),
+end of the note). A highlighted row is not a ticked one, which cost a user
+their first tag: → therefore saves with the highlighted tag when nothing is
+ticked, ⌘→ saves with none, and the footer states which. Editing a clip is
+exempt, since unticking everything there has to mean no tags. Digits are read by **key code** (the physical digit row),
 so `1` and `⌘1` toggle the first tag on an AZERTY keyboard without Shift.
 Every key also has a button in the footer, with its shortcut printed after
 the label. Browse remembers the capture it was opened from, and esc returns

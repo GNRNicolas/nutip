@@ -78,11 +78,13 @@ over whatever you are doing:
 - Copied text becomes a text clip. A copied link becomes a link clip. Text
   copied from a web page in Safari, Chrome, Arc, Brave or Edge keeps the
   page it came from: the browser puts it on the clipboard, Nutip reads it.
-- **↑↓** move through your tags, **1–9** (or **⌘1–9**) toggle them, several
-  are fine. **←** jumps to a one-line note: *why* you are saving this.
-- **→** saves. The palette closes at once; if there is a page, its readable
-  text is fetched in the background and added to the file a couple of
-  seconds later.
+- **↑↓** move through your tags, **1–9** (or **⌘1–9**) tick them, several are
+  fine. **←** jumps to a one-line note: *why* you are saving this.
+- **→** saves, with the tags you ticked, or with the highlighted one if you
+  ticked none: one tag costs one key. **⌘→** saves with no tag at all. The
+  footer always says which of these is about to happen.
+- The palette closes at once; if there is a page, its readable text is
+  fetched in the background and added to the file a couple of seconds later.
 
 A small toast confirms, with **Undo** (⌘Z while it shows). Nothing to name,
 nothing to file.

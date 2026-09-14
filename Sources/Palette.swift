@@ -621,10 +621,11 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             toggle(index: n)
             return true
         }
-        if key.code == Key.right, !key.command {
+        if key.code == Key.right {
             // Only from the end of the note, so → still moves the caret inside it.
-            if fieldIsEditing, let editor = field.currentEditor(), editor.selectedRange.location < editor.string.count { return false }
-            confirm(command: false)
+            if !key.command, fieldIsEditing, let editor = field.currentEditor(),
+               editor.selectedRange.location < editor.string.count { return false }
+            confirm(command: false, dropTags: key.command)
             return true
         }
         if key.code == Key.left, !key.command {
@@ -676,6 +677,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         let next = min(max(0, current + delta), count - 1)
         table.selectRowIndexes(IndexSet(integer: next), byExtendingSelection: false)
         table.scrollRowToVisible(next)
+        if isTagMode { showTagHints() }
     }
 
     private func toggleSelected() {
@@ -683,14 +685,27 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         toggle(index: table.selectedRow)
     }
 
-    /// The footer says what → is about to write. A highlighted row is only a
-    /// selection: without this, a tag list of one looks like a tag already
-    /// chosen, and the clip is saved with none.
+    /// The tags a save would write. Ticked ones if there are any; otherwise
+    /// the highlighted row, so tagging with one tag is a single key. Editing a
+    /// clip is exempt: unticking everything there means "no tags", and must.
+    private var pickedTags: [String] {
+        let ticked = tags.filter { checked.contains($0.tagKey) }
+        guard ticked.isEmpty, case .capture = mode,
+              table.selectedRow >= 0, table.selectedRow < tags.count else { return ticked }
+        return [tags[table.selectedRow]]
+    }
+
+    /// The footer says what → is about to write, since a highlighted row and a
+    /// ticked one do not mean the same thing.
     private func showTagHints() {
-        let picked = tags.filter { checked.contains($0.tagKey) }
-        hints.stringValue = picked.isEmpty
-            ? "↩ or 1–9 tags this clip · ← note · → saves with no tag"
-            : "Saving with " + picked.map { "#\($0)" }.joined(separator: " ") + " · ↩ toggles · ← note"
+        let ticked = tags.filter { checked.contains($0.tagKey) }
+        if !ticked.isEmpty {
+            hints.stringValue = "Saving with " + ticked.map { "#\($0)" }.joined(separator: " ") + " · ↩ toggles · ← note"
+        } else if let one = pickedTags.first {
+            hints.stringValue = "→ saves with #\(one) · ↩ adds more · ⌘→ none · ← note"
+        } else {
+            hints.stringValue = "↩ or 1–9 tags this clip · ← note"
+        }
     }
 
     private func toggle(index: Int) {
@@ -702,12 +717,12 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         showTagHints()
     }
 
-    private func confirm(command: Bool) {
+    private func confirm(command: Bool, dropTags: Bool = false) {
         switch mode {
         case .capture(let ctx):
             let why = field.stringValue
             hide()
-            delegate?.palette(self, didCapture: ctx, tags: tags.filter { checked.contains($0.tagKey) }, why: why)
+            delegate?.palette(self, didCapture: ctx, tags: dropTags ? [] : pickedTags, why: why)
         case .edit(var clip):
             clip.tags = tags.filter { checked.contains($0.tagKey) }
             clip.why = field.stringValue.trimmed
