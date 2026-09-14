@@ -345,7 +345,7 @@ final class Preferences: NSObject, NSWindowDelegate, NSTableViewDataSource, NSTa
     }
 
     private func showTagHint() {
-        tagStatus.stringValue = "Double-click to rename. Capitals and accents are kept; spaces become a dash. The first nine answer to keys 1–9 in the palette."
+        tagStatus.stringValue = "Double-click to rename."
     }
 
     // MARK: Undo
