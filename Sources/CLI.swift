@@ -17,6 +17,7 @@ enum CLI {
       nutip folder [path]                the clips folder; with a path, move to it
       nutip reindex                      rebuild INDEX.md, tags/*.md and the search index
       nutip doctor                       permissions, folder, hotkey
+      nutip enrich [--dry-run]
       nutip --help
 
     NUTIP_DIR=<folder> overrides the clips folder for one command.
@@ -58,6 +59,8 @@ enum CLI {
             let query = rest.joined(separator: " ")
             guard !query.trimmed.isEmpty else { fail("search needs a query") }
             emit(Index.search(query, limit: 50), json: json)
+        case "enrich":
+            enrich(dry: rest.contains("--dry-run"))
         case "add":
             add(rest)
         case "rm", "remove", "delete":
@@ -70,6 +73,27 @@ enum CLI {
             return false
         }
         return true
+    }
+
+    /// Gives keywords to the clips that have none: the ones saved before this
+    /// existed, and the ones whose page arrived after the file was written.
+    /// Counted locally from the clip's own text — nothing is sent anywhere, and
+    /// a `keywords:` line already in a file is never touched.
+    private static func enrich(dry: Bool) {
+        Index.open()
+        var done = 0
+        for clip in Store.all() where clip.keywords.isEmpty {
+            let words = Keywords.derive(title: clip.title, why: clip.why, body: clip.body, tags: clip.tags)
+            guard !words.isEmpty else { continue }
+            done += 1
+            print("\(clip.path)\n  \(words.joined(separator: ", "))")
+            if dry { continue }
+            var updated = clip
+            updated.keywords = words
+            do { try Store.save(updated) } catch { fail("could not write \(clip.path): \(error.localizedDescription)") }
+        }
+        print(done == 0 ? "nothing to enrich: every clip already has keywords"
+                        : "\(done) clip\(done == 1 ? "" : "s")\(dry ? " would be enriched (--dry-run)" : " enriched")")
     }
 
     /// `nutip folder` prints it, `nutip folder <path>` moves to it. An agent

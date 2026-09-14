@@ -11,6 +11,10 @@ struct Clip: Equatable {
     var capturedAt: Date
     var tags: [String]
     var why: String
+    /// Words this clip is about, counted from its own text by `Keywords`.
+    /// Indexed like the body, so a question that paraphrases the page still
+    /// finds it. Editable by hand; regenerated only when empty.
+    var keywords: [String] = []
     var body: String            // everything after the frontmatter
     /// False for a row that came from the search index, which stores no body.
     /// `Store.save` reloads the body first, so such a row can never truncate a file.
@@ -80,12 +84,26 @@ enum Store {
         var clip = clip
         let old = try? read(path: clip.path)
         if !clip.bodyLoaded {
+            // This clip came from the index, which carries no body and no
+            // keywords. Taking them from the file is what keeps editing a tag
+            // from truncating the page text and rewriting the keywords.
             clip.body = old?.body ?? ""
+            if clip.keywords.isEmpty { clip.keywords = old?.keywords ?? [] }
             clip.bodyLoaded = true
         }
+        clip.keywords = keywords(for: clip)
         try writeText(render(clip), to: file)
         Index.upsert(clip)
         regenerateIndexes(months: [clip.month], tags: Set(clip.tags).union(old?.tags ?? []))
+    }
+
+    /// Keywords are derived once, when there is finally something to derive
+    /// them from: a clip is written before its page is fetched, so the first
+    /// save of a link has nothing but a title. A spelling the user edited by
+    /// hand is never overwritten.
+    static func keywords(for clip: Clip) -> [String] {
+        guard clip.keywords.isEmpty else { return clip.keywords }
+        return Keywords.derive(title: clip.title, why: clip.why, body: clip.body, tags: clip.tags)
     }
 
     /// Appends extracted page content to an existing clip's body.
@@ -175,6 +193,7 @@ enum Store {
         lines.append("captured_at: \(Dates.iso.string(from: clip.capturedAt))")
         lines.append("tags: [\(clip.tags.joined(separator: ", "))]")
         if !clip.why.isEmpty { lines.append("why: \(quote(clip.why))") }
+        if !clip.keywords.isEmpty { lines.append("keywords: [\(clip.keywords.joined(separator: ", "))]") }
         lines.append("---")
         lines.append("")
         lines.append("# \(clip.title)")
@@ -228,7 +247,14 @@ enum Store {
             ?? Date()
 
         return Clip(path: path, title: title, url: fields["url"].map(unquote), source: unquote(fields["source"] ?? ""),
-                    capturedAt: date, tags: tags, why: unquote(fields["why"] ?? ""), body: rest)
+                    capturedAt: date, tags: tags, why: unquote(fields["why"] ?? ""),
+                    keywords: list(fields["keywords"]), body: rest)
+    }
+
+    /// A flow-style list, the one shape the frontmatter uses: `[a, b, c]`.
+    private static func list(_ raw: String?) -> [String] {
+        (raw ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+            .split(separator: ",").map { String($0).trimmed }.filter { !$0.isEmpty }
     }
 
     private static func quote(_ s: String) -> String {
@@ -412,6 +438,7 @@ enum Store {
         captured_at: 2026-09-13T14:03:22+02:00
         tags: [reading, competitors]
         why: "one line from the person who saved it"   (optional)
+        keywords: [what, the, page, is, about]        (optional, counted locally)
         ---
 
         # Page or selection title
@@ -420,6 +447,10 @@ enum Store {
 
         What was selected, then the readable text of the page if it is a web page.
         ```
+
+        Search matches words, and a question rarely uses the words a page used. If a
+        search comes back empty, read a tag page or this INDEX.md and make the link
+        yourself rather than reporting that nothing was saved.
 
         `why` is the only thing here that cannot be inferred from the content: it is the
         person's intent. Weigh it accordingly.
@@ -478,6 +509,7 @@ enum Store {
         captured_at: 2026-09-13T14:03:22+02:00
         tags: [reading, competitors]
         why: "one line from the person who saved it"   (optional)
+        keywords: [what, the, page, is, about]        (optional, counted locally)
         ---
 
         # Page or selection title

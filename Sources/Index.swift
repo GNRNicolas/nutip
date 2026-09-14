@@ -11,7 +11,7 @@ enum Index {
     private static var db: OpaquePointer?
     private static let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
     /// Bumped when the columns change: the database is rebuilt instead of migrated.
-    private static let schema: Int32 = 3
+    private static let schema: Int32 = 4
 
     private static var file: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -45,7 +45,7 @@ enum Index {
         );
         CREATE INDEX IF NOT EXISTS clips_date ON clips (captured_at DESC);
         CREATE INDEX IF NOT EXISTS clips_url ON clips (url_key);
-        CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(path UNINDEXED, title, tags, why, body, tokenize='unicode61 remove_diacritics 2');
+        CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(path UNINDEXED, title, tags, why, keywords, body, tokenize='unicode61 remove_diacritics 2');
         """)
         return sync()
     }
@@ -127,8 +127,9 @@ enum Index {
              clip.capturedAt.timeIntervalSince1970, String(clip.path.prefix(7)),
              clip.tags.joined(separator: " "), clip.tags.map(\.tagKey).joined(separator: " "),
              clip.why, stamp.modified, stamp.size])
-        run("INSERT INTO fts (path, title, tags, why, body) VALUES (?,?,?,?,?)",
-            [clip.path, clip.title, clip.tags.joined(separator: " "), clip.why, String(clip.body.prefix(20_000))])
+        run("INSERT INTO fts (path, title, tags, why, keywords, body) VALUES (?,?,?,?,?,?)",
+            [clip.path, clip.title, clip.tags.joined(separator: " "), clip.why,
+             clip.keywords.joined(separator: " "), String(clip.body.prefix(20_000))])
     }
 
     // MARK: Queries
@@ -143,18 +144,36 @@ enum Index {
         if q.isEmpty, tags.isEmpty {
             return clips("SELECT \(columns) FROM clips ORDER BY captured_at DESC LIMIT ?", [limit])
         }
-        // Every word as a prefix, all required. `#tag` restricts to the tags column.
-        let terms = q.split(separator: " ").map { word -> String in
+        // A tag is a filter: it is required. A word is a clue: requiring every
+        // one of them means a question phrased in one more word than the page
+        // used returns nothing at all, which is the worst answer a search can
+        // give. So words are OR'd and the best match comes first.
+        var required: [String] = tags.map { "tags:\"\($0)\"" }
+        var words: [String] = []
+        for word in q.split(separator: " ") {
             let w = String(word)
             let clean = w.trimmingCharacters(in: CharacterSet(charactersIn: "#\"'*"))
                 .replacingOccurrences(of: "\"", with: "")
-            guard !clean.isEmpty else { return "" }
-            return w.hasPrefix("#") ? "tags:\"\(clean)\"*" : "\"\(clean)\"*"
-        }.filter { !$0.isEmpty } + tags.map { "tags:\"\($0)\"" }
+            guard !clean.isEmpty else { continue }
+            if w.hasPrefix("#") { required.append("tags:\"\(clean)\"*") } else { words.append("\"\(clean)\"*") }
+        }
+        if !words.isEmpty {
+            required.append(words.count == 1 ? words[0] : "(" + words.joined(separator: " OR ") + ")")
+        }
+        guard !required.isEmpty else {
+            return clips("SELECT \(columns) FROM clips ORDER BY captured_at DESC LIMIT ?", [limit])
+        }
+        // One word, or none: everything that matches is equally relevant, so the
+        // useful order is the one the user thinks in — newest first. Several
+        // words: rank them, weighting the lines a human wrote (title, reason,
+        // keywords) above the page text they did not.
+        let ranked = words.count > 1
+        let order = ranked ? "bm25(fts, 0.0, 12.0, 6.0, 10.0, 8.0, 1.0), clips.captured_at DESC"
+                           : "clips.captured_at DESC"
         return clips("""
             SELECT \(columns) FROM clips JOIN fts ON clips.path = fts.path
-            WHERE fts MATCH ? ORDER BY clips.captured_at DESC LIMIT ?
-            """, [terms.joined(separator: " AND "), limit])
+            WHERE fts MATCH ? ORDER BY \(order) LIMIT ?
+            """, [required.joined(separator: " AND "), limit])
     }
 
     /// The most recent clips, optionally of one tag: what an index page lists.

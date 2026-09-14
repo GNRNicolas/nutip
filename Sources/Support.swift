@@ -209,3 +209,37 @@ extension URL {
         (host ?? "").replacingOccurrences(of: "^www\\.", with: "", options: .regularExpression)
     }
 }
+
+// MARK: - Bundled resources
+
+/// Files that ship inside the app bundle (Readability.js, tomarkdown.js).
+///
+/// `Bundle.main` cannot be trusted here: invoked through the `nutip` symlink
+/// in /opt/homebrew/bin, macOS builds the main bundle from the path the
+/// process was *invoked* with, so it lands on /opt/homebrew and every bundled
+/// file looks missing. The executable's real path is the only reliable anchor,
+/// and resolving its symlinks walks us back into Contents/MacOS.
+enum Resources {
+    static func url(_ name: String, _ ext: String) -> URL? {
+        if let inBundle = Bundle.main.url(forResource: name, withExtension: ext),
+           FileManager.default.fileExists(atPath: inBundle.path) {
+            return inBundle
+        }
+        let file = "\(name).\(ext)"
+        for candidate in searchPaths.map({ $0.appendingPathComponent(file) })
+        where FileManager.default.fileExists(atPath: candidate.path) {
+            return candidate
+        }
+        Log.write("resources: \(file) not found near \(Bundle.main.executablePath ?? "?")")
+        return nil
+    }
+
+    /// Contents/Resources as seen from the executable, plus the executable's
+    /// own folder, which is where a plain `swiftc` build leaves them.
+    private static var searchPaths: [URL] {
+        guard let path = Bundle.main.executablePath else { return [] }
+        let exe = URL(fileURLWithPath: path).resolvingSymlinksInPath()
+        let macOS = exe.deletingLastPathComponent()
+        return [macOS.deletingLastPathComponent().appendingPathComponent("Resources"), macOS]
+    }
+}

@@ -25,8 +25,8 @@ final class Extractor: NSObject, WKNavigationDelegate {
     private var timers: [WKWebView: Timer] = [:]
 
     private lazy var script: String? = {
-        guard let readability = Bundle.main.url(forResource: "Readability", withExtension: "js"),
-              let toMarkdown = Bundle.main.url(forResource: "tomarkdown", withExtension: "js"),
+        guard let readability = Resources.url("Readability", "js"),
+              let toMarkdown = Resources.url("tomarkdown", "js"),
               let a = try? String(contentsOf: readability, encoding: .utf8),
               let b = try? String(contentsOf: toMarkdown, encoding: .utf8) else {
             Log.write("extractor: bundled scripts missing")

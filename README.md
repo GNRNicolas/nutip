@@ -125,6 +125,7 @@ source: "Safari · en.wikipedia.org"
 captured_at: 2026-09-13T14:03:22+02:00
 tags: [reading, reference]
 why: "the CommonMark history, for the docs"
+keywords: [markdown, commonmark, gruber, syntax, markup, heading, text, github]
 ---
 
 # Markdown - Wikipedia
@@ -161,7 +162,15 @@ read by one:
   into `~/.claude/skills/` and your agent knows the commands, the tag
   discipline and what it must never overwrite.
 - A clip file is capped at 40 000 characters of extracted page text, so
-  opening one never costs an agent its context window.
+  opening one never costs an agent its context window. A long article lands
+  right on that cap; most clips are a few kilobytes.
+- `keywords:` is counted from the clip's own text — frequency and a stop list,
+  no model, no network, no API key — and indexed alongside it, so a question
+  that paraphrases the page still matches. Correct one by hand and it stays.
+- Search is forgiving on purpose: the words of a query are OR'd and the best
+  match comes first, so asking in a whole sentence works. Only a `#tag` is
+  required. When nothing matches, the index pages are the fallback — one line
+  per clip, with its reason, for the agent to read and judge.
 
 ### Command line
 
@@ -176,6 +185,7 @@ nutip add https://example.com -x    # same, and read the page into the clip
 nutip rm 2026-09/2026-09-13-thing.md   # move a clip to the Trash, indexes updated
 nutip extract https://example.com   # what a page becomes, on stdout
 nutip reindex                       # rebuild INDEX.md, tags/ and the search index
+nutip enrich                        # give keywords to the clips that have none (--dry-run to preview)
 nutip folder ~/notes/clips          # move the clips folder; no argument prints it
 nutip tags add veille               # what the palette offers; nutip tags rm to drop one
 ```
