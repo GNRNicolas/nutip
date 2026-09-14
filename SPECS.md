@@ -180,15 +180,25 @@ detected (macOS accepts a duplicate registration silently); the menu bar
 item is the way in when the key seems dead, and the preset list avoids
 combinations the system uses.
 
+## Two audiences, two files
+
+`AGENTS.md` is written into the clips folder and describes the folder:
+an agent that opens it needs nothing else. `skills/nutip/SKILL.md` is shipped
+with the app and describes the CLI: it is loaded before the agent has seen the
+folder at all, and it is what makes "save this" and "what did I save about X"
+work without the user explaining anything. Keeping them apart is deliberate,
+since one travels with the clips and the other with the tool.
+
 ## The CLI is the same binary
 
 `main.swift` calls `CLI.run` before `NSApplication` exists. With arguments,
 the process prints and exits; without, it becomes the menu bar app.
 `Bundle.main` still resolves to the `.app`, so preferences are shared.
 `nutip extract` spins a run loop around the same `Extractor`, which is how the
-Markdown output is tested without the GUI. `nutip add` does not extract
-pages: it is meant for scripts, and a script can pipe `nutip extract` into
-it if it wants the text.
+Markdown output is tested without the GUI. `nutip add` does not extract a page
+unless asked with `-x`: the GUI can hide a fetch behind a closed palette, a
+command cannot, so a script pays for it only when it wants it. `nutip rm`
+exists so an agent tidying the folder does not leave the indexes behind.
 
 ## What v1 leaves out, on purpose
 

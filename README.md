@@ -17,6 +17,8 @@ inside. The folder is the product.
 
 ## Install
 
+### Manual
+
 ```sh
 git clone https://github.com/GNRNicolas/nutip.git && cd nutip && ./build.sh --install
 ```
@@ -27,6 +29,23 @@ command into your shell. Needs macOS 13+ and the Xcode command line tools
 
 Nutip lives in the menu bar as a tray icon. The first launch asks for a
 folder and your first tags.
+
+### With an agent
+
+Paste this into Claude Code, Codex, Cursor or whatever you use:
+
+> Install Nutip for me on this Mac. Clone https://github.com/GNRNicolas/nutip
+> into a folder I keep (not a temp dir), run `./build.sh --install` there, and
+> tell me if the Xcode command line tools are missing instead of guessing.
+> Then link its agent skill so you can use it later:
+> `mkdir -p ~/.claude/skills && ln -sfn "$PWD/skills/nutip" ~/.claude/skills/nutip`
+> (skip this if I do not use Claude Code). Finish by running `nutip doctor` and
+> telling me the hotkey, the clips folder, and the one gesture: copy, then
+> press the hotkey.
+
+The repo ships a [`nutip` skill](skills/nutip/SKILL.md) so an agent knows how
+to search your clips, save into them and keep them tidy. The clips folder also
+gets its own `AGENTS.md`, which most agents pick up without being told.
 
 ## Use
 
@@ -113,6 +132,9 @@ read by one:
 - `nutip search "…" --json` returns the same rows with an absolute `file`
   path, so an agent can go straight to the text. Plain `grep` works too, and
   the folder is just Markdown if Nutip is not installed.
+- [`skills/nutip`](skills/nutip/SKILL.md) is a Claude Code skill: symlink it
+  into `~/.claude/skills/` and your agent knows the commands, the tag
+  discipline and what it must never overwrite.
 - A clip file is capped at 40 000 characters of extracted page text, so
   opening one never costs an agent its context window.
 
@@ -123,8 +145,10 @@ The same binary is the CLI (`./build.sh --install` links it as `nutip`):
 ```sh
 nutip recent 10                     # newest clips
 nutip search "pricing #competitors" # full-text, #tag filters
-nutip search claude --json          # for scripts and agents
+nutip search claude --json          # for scripts and agents, with an absolute file path
 nutip add https://example.com -t reading -w "the pricing table"
+nutip add https://example.com -x    # same, and read the page into the clip
+nutip rm 2026-09/2026-09-13-thing.md   # move a clip to the Trash, indexes updated
 nutip extract https://example.com   # what a page becomes, on stdout
 nutip reindex                       # rebuild INDEX.md, tags/ and the search index
 ```

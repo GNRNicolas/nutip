@@ -44,6 +44,8 @@ pointing at the upstream repo.
 | Palette size and row heights | the `static let`s at the top of `Palette` |
 | Toast duration | `Toast.show`, the `Timer` |
 | CLI commands | `CLI.run` |
+| What an agent is told about the CLI | `skills/nutip/SKILL.md` |
+| What an agent is told about the folder | `Store.writeAgents` |
 
 ## Build and run
 
