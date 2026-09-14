@@ -143,7 +143,7 @@ enum CLI {
         if let root = Settings.folder?.path, path.hasPrefix(root) {
             relative = String(path.dropFirst(root.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         }
-        guard let clip = try? Store.read(path: relative) else { fail("no clip at \(path)") }
+        guard let clip = try? Store.read(path: relative) else { fail("no clip at \(path) (inside \(Settings.folder?.path ?? "the folder"))") }
         do {
             try Store.delete(clip)
             print("trashed \(relative)")

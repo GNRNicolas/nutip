@@ -107,9 +107,23 @@ enum Store {
 
     /// Parses one clip file. Nil when the file is not a Nutip clip (no frontmatter).
     static func read(path: String) throws -> Clip? {
-        guard let root = folder else { throw StoreError.noFolder }
-        let text = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+        guard let file = try url(for: path) else { return nil }
+        let text = try String(contentsOf: file, encoding: .utf8)
         return parse(text, path: path)
+    }
+
+    /// Resolves a clip path inside the folder, or nil when it points outside
+    /// it. `..` in a path handed over by a script or an agent must not reach a
+    /// file Nutip was never meant to touch.
+    static func url(for path: String) throws -> URL? {
+        guard let root = folder else { throw StoreError.noFolder }
+        let file = root.appendingPathComponent(path).standardizedFileURL
+        let base = root.standardizedFileURL.path
+        guard file.path == base || file.path.hasPrefix(base + "/") else {
+            Log.write("store: refused a path outside the folder: \(path)")
+            return nil
+        }
+        return file
     }
 
     /// Every clip file in the folder with its modification date and size,

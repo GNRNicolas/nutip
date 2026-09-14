@@ -46,6 +46,16 @@ single tag per clip, and it has no place for per-clip metadata. One file per
 clip has none of those problems and costs a monthly sub-folder so the Finder
 stays usable at a few thousand files.
 
+### Tags are edited as a list, and removals are undoable
+
+The first version used an `NSTokenField`: compact, native, and one ⌘A away
+from wiping every tag with no way back. Tags are now a table with + and −,
+renamed in place. A removal writes straight through to preferences, with no
+confirmation dialog, because ⌘Z takes it back (⇧⌘Z redoes it) and the line
+under the list says how many clips carried the tag. The app has no menu bar,
+so ⌘Z is caught by a local event monitor that lives only while the window is
+key, and by key code rather than by character so it works on AZERTY.
+
 ### Tags, not folders
 
 A clip can be about a competitor *and* about pricing. Folders cannot say

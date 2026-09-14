@@ -30,6 +30,7 @@ pointing at the upstream repo.
 | To change | Edit |
 |---|---|
 | Default tags, default folder, index length | `Settings` in `Support.swift` |
+| The tag list and its undo | `Preferences.tagsBox`, `addTag`/`removeSelectedTags`/`undoTags` |
 | Hotkey presets | `Hotkey` in `Shortcuts.swift`, one line per preset |
 | The frontmatter, the file body | `Store.render` and `Store.parse` (keep them symmetrical) |
 | File and folder naming | `Store.add` (`YYYY-MM/YYYY-MM-DD-slug.md`) |
