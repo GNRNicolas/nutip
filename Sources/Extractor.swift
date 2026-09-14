@@ -18,6 +18,9 @@ struct Extracted {
 final class Extractor: NSObject, WKNavigationDelegate {
     static let shared = Extractor()
 
+    /// Under this many characters, an extraction has not found an article.
+    private static let thinPage = 400
+
     private var jobs: [WKWebView: (Extracted?) -> Void] = [:]
     private var timers: [WKWebView: Timer] = [:]
 
@@ -32,17 +35,34 @@ final class Extractor: NSObject, WKNavigationDelegate {
         return a + "\n" + b + """
 
         (function () {
+          function meta(names) {
+            for (var i = 0; i < names.length; i++) {
+              var el = document.querySelector(names[i]);
+              var v = el && (el.content || '').trim();
+              if (v) return v;
+            }
+            return '';
+          }
+          // A landing page or an app has no article, and Readability returns a
+          // line of boilerplate. Its own description is the better sentence.
+          var description = meta([
+            'meta[property="og:description"]',
+            'meta[name="description"]',
+            'meta[name="twitter:description"]'
+          ]);
+          var heading = meta(['meta[property="og:title"]']) || document.title || '';
           try {
             var doc = document.cloneNode(true);
             var article = new Readability(doc, { charThreshold: 200 }).parse();
-            if (!article) return null;
+            if (!article) return { title: heading, byline: '', excerpt: description, markdown: '', description: description };
             var wrapper = document.createElement('div');
             wrapper.innerHTML = article.content;
             return {
-              title: article.title || document.title || '',
+              title: article.title || heading,
               byline: article.byline || '',
-              excerpt: article.excerpt || '',
-              markdown: nutipToMarkdown(wrapper, location.href)
+              excerpt: article.excerpt || description,
+              markdown: nutipToMarkdown(wrapper, location.href),
+              description: description
             };
           } catch (e) { return { error: String(e) }; }
         })();
@@ -97,10 +117,17 @@ final class Extractor: NSObject, WKNavigationDelegate {
                 self?.finish(web, with: nil)
                 return
             }
-            let out = Extracted(title: dict["title"] as? String ?? "",
+            var out = Extracted(title: dict["title"] as? String ?? "",
                                 byline: dict["byline"] as? String ?? "",
                                 excerpt: dict["excerpt"] as? String ?? "",
                                 markdown: (dict["markdown"] as? String ?? "").trimmed)
+            // Below this, what came back is a cookie banner or a tagline, not a
+            // page: the site's own description says more in one line.
+            let description = (dict["description"] as? String ?? "").trimmed
+            if out.markdown.count < Extractor.thinPage, !description.isEmpty,
+               !out.markdown.contains(description) {
+                out.markdown = out.markdown.isEmpty ? description : description + "\n\n" + out.markdown
+            }
             self?.finish(web, with: out.markdown.isEmpty ? nil : out)
         }
     }
