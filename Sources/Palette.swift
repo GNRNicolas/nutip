@@ -383,7 +383,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         clipMeta.stringValue = sub
         field.stringValue = ""
         field.placeholderString = "Why are you saving this? (optional, press ←)"
-        hints.stringValue = "↑↓ pick · ↩ or 1–9 toggle · ← note"
+        showTagHints()
         setButtons([("Browse", "⌘F", #selector(browsePressed), false), ("Cancel", "esc", #selector(cancelPressed), false),
                     ("Save", "→", #selector(savePressed), true)])
     }
@@ -396,7 +396,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         clipMeta.stringValue = "Editing · \(clip.source) · \(Dates.relative(clip.capturedAt))"
         field.stringValue = clip.why
         field.placeholderString = "Why did you save this? (optional)"
-        hints.stringValue = "↑↓ pick · ↩ or 1–9 toggle · ← note"
+        showTagHints()
         setButtons([("Back", "esc", #selector(cancelPressed), false), ("Save", "→", #selector(savePressed), true)])
     }
 
@@ -683,12 +683,23 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         toggle(index: table.selectedRow)
     }
 
+    /// The footer says what → is about to write. A highlighted row is only a
+    /// selection: without this, a tag list of one looks like a tag already
+    /// chosen, and the clip is saved with none.
+    private func showTagHints() {
+        let picked = tags.filter { checked.contains($0.tagKey) }
+        hints.stringValue = picked.isEmpty
+            ? "↩ or 1–9 tags this clip · ← note · → saves with no tag"
+            : "Saving with " + picked.map { "#\($0)" }.joined(separator: " ") + " · ↩ toggles · ← note"
+    }
+
     private func toggle(index: Int) {
         guard index < tags.count else { return }
         let tag = tags[index]
         if checked.contains(tag.tagKey) { checked.remove(tag.tagKey) } else { checked.insert(tag.tagKey) }
         table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
         table.reloadData(forRowIndexes: IndexSet(integer: index), columnIndexes: IndexSet(integer: 0))
+        showTagHints()
     }
 
     private func confirm(command: Bool) {
