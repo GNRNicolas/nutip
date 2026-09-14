@@ -57,6 +57,9 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         return String(field.stringValue[range].dropFirst())
     }
     private let chips = NSStackView()
+    /// Separator above the why field. It doubles the header separator when
+    /// the clip block between them is hidden, so it follows the block.
+    private let fieldLine = NSBox()
     private let logo = NSImageView()
     private let clipTitle = NSTextField(labelWithString: "")
     private let clipMeta = NSTextField(labelWithString: "")
@@ -261,7 +264,6 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
 
         let topLine = NSBox()
         topLine.boxType = .separator
-        let fieldLine = NSBox()
         fieldLine.boxType = .separator
         let stack = NSStackView(views: [header, topLine, clipBlock, fieldLine, fieldBox, line, scroll, footer])
         stack.orientation = .vertical
@@ -322,6 +324,12 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         subtitleLabel.textColor = .secondaryLabelColor
         subtitleLabel.stringValue = Settings.folder?.path.replacingOccurrences(of: NSHomeDirectory(), with: "~") ?? ""
         clipBlock.isHidden = false
+        fieldLine.isHidden = false
+        // Leaving browse: the pinned #tag chips belong to the search field,
+        // not to the note, and there is no way to remove them from here.
+        activeTags = []
+        suggestions = []
+        renderChips()
         switch mode {
         case .capture(let ctx):
             tags = Settings.tags
@@ -362,6 +370,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             setButtons([("Back", "esc", #selector(cancelPressed), false), ("Save", "→", #selector(savePressed), true)])
         case .browse:
             clipBlock.isHidden = true
+            fieldLine.isHidden = true
             field.stringValue = ""
             field.placeholderString = "Search clips… (# for tags)"
             activeTags = []
@@ -375,6 +384,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             setButtons(specs)
             results = Index.search("", tags: activeTags)
         }
+        if !panel.isVisible { anchorTop = nil }
         table.reloadData()
         table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         table.scrollRowToVisible(0)
@@ -432,8 +442,13 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     func hide() {
         removeMonitor()
         cameFrom = nil
+        anchorTop = nil
         panel.orderOut(nil)
     }
+
+    /// The y of the panel's top edge. Set when the panel appears and kept
+    /// while it is up: a list that grows or shrinks must not move the header.
+    private var anchorTop: CGFloat?
 
     private func resize() {
         let rows = table.numberOfRows
@@ -450,15 +465,23 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         scrollHeight.constant = rows == 0 ? 56 : CGFloat(visible) * rowHeight + 4
         panel.layoutIfNeeded()
         panel.setContentSize(NSSize(width: Palette.width, height: panel.contentView!.fittingSize.height))
+        if let top = anchorTop {
+            panel.setFrameOrigin(NSPoint(x: panel.frame.origin.x, y: top - panel.frame.height))
+        }
     }
 
     private func place() {
+        if let top = anchorTop {
+            panel.setFrameOrigin(NSPoint(x: panel.frame.origin.x, y: top - panel.frame.height))
+            return
+        }
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]
         let frame = screen.visibleFrame
         let size = panel.frame.size
         let origin = NSPoint(x: frame.midX - size.width / 2, y: frame.minY + frame.height * 0.62 - size.height / 2)
         panel.setFrameOrigin(origin)
+        anchorTop = origin.y + size.height
     }
 
     private var isTagMode: Bool {
