@@ -167,10 +167,14 @@ read by one:
 - `keywords:` is counted from the clip's own text — frequency and a stop list,
   no model, no network, no API key — and indexed alongside it, so a question
   that paraphrases the page still matches. Correct one by hand and it stays.
-- Search is forgiving on purpose: the words of a query are OR'd and the best
-  match comes first, so asking in a whole sentence works. Only a `#tag` is
-  required. When nothing matches, the index pages are the fallback — one line
-  per clip, with its reason, for the agent to read and judge.
+- Search is forgiving on purpose: ask it a whole question. The words are OR'd,
+  filler words are dropped, the best match comes first, and only a `#tag` is
+  required.
+- It still matches words, not meaning, so **the language matters**. Measured on
+  a 19-clip corpus of real pages: 5 French questions out of 10 found their clip;
+  the same 5, re-asked in English, found it every time. An agent that re-asks in
+  the language the page was written in turns 5/10 into 10/10, and `nutip search`
+  says so itself when it comes back empty.
 
 ### Command line
 

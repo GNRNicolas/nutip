@@ -30,12 +30,17 @@ first, so extra words cost nothing and a tag is the only thing that is
 required.
 
 **When search comes back empty, do not stop there** — it matches words, and
-the question rarely uses the words the page used ("le site pour save des
-trucs" against a page that says *download*). Escalate, cheapest first:
+the question rarely uses the words the page used. Escalate, cheapest first:
 
-1. `nutip tags`, then the page of the likeliest tag (`tags/<tag>.md`) — a few
+1. **Ask again in the other language.** This is the single biggest win and it
+   costs one command: the folder holds English pages and the questions come in
+   French, or the reverse. Measured on a 19-clip corpus: 5 French questions out
+   of 10 found their clip; the same 5 failures, re-asked in English, found it
+   every time — 10/10. Translate the subject words, not the sentence
+   (*"effets de bord react"* → `useEffect side effects react`).
+2. `nutip tags`, then the page of the likeliest tag (`tags/<tag>.md`) — a few
    hundred tokens, already narrowed.
-2. `nutip recent 200`, or `INDEX.md` at the root: one line per clip, with its
+3. `nutip recent 200`, or `INDEX.md` at the root: one line per clip, with its
    reason. Read it and make the connection yourself — that is the step no
    full-text index can do, and it is why the folder is written this way.
 

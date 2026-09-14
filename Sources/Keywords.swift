@@ -50,6 +50,15 @@ enum Keywords {
             .compactMap { spellings[$0.key] }
     }
 
+    /// A word that says nothing about a subject. Used both when counting a
+    /// clip's keywords and when reading a question: "les règles d'ergonomie
+    /// pour relire une interface" carries four words that match half the
+    /// folder, and they outvote the two that matter.
+    static func isNoise(_ word: String) -> Bool {
+        let w = word.lowercased().folding(options: .diacriticInsensitive, locale: .current)
+        return w.count < minLength || stop.contains(w)
+    }
+
     private static func words(in text: String) -> [String] {
         stripLinks(text).lowercased()
             .components(separatedBy: CharacterSet.letters.inverted)

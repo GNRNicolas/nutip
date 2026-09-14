@@ -58,7 +58,9 @@ enum CLI {
             Index.open()
             let query = rest.joined(separator: " ")
             guard !query.trimmed.isEmpty else { fail("search needs a query") }
-            emit(Index.search(query, limit: 50), json: json)
+            let found = Index.search(query, limit: 50)
+            emit(found, json: json)
+            if found.isEmpty { suggest() }
         case "enrich":
             enrich(dry: rest.contains("--dry-run"))
         case "add":
@@ -73,6 +75,25 @@ enum CLI {
             return false
         }
         return true
+    }
+
+    /// An empty result is a dead end for an agent that has no other idea, and
+    /// "nothing was saved about that" is usually wrong: the clip is there, in
+    /// the language the page was written in. Said on stderr, so --json output
+    /// stays machine-readable.
+    private static func suggest() {
+        fflush(stdout)   // or the hint lands above the "(no clips)" it explains
+        let tags = Index.tagCounts().prefix(12).map { "\($0.0) (\($0.1))" }
+        FileHandle.standardError.write(Data("""
+
+        Nothing matched those words. Before concluding that nothing was saved:
+          · ask again in the language the page was probably written in \
+        (a French question rarely matches an English article)
+          · nutip tags, then the page of the likeliest tag
+          · nutip recent 200, or INDEX.md at the root: one line per clip, to read and judge
+        tags in use: \(tags.isEmpty ? "(none)" : tags.joined(separator: ", "))
+
+        """.replacingOccurrences(of: "        ", with: "").utf8))
     }
 
     /// Gives keywords to the clips that have none: the ones saved before this
@@ -176,6 +197,11 @@ enum CLI {
         var title = ""
         var extractPage = false
         var words: [String] = []
+        /// Arguments that look like flags but are not any of ours. Silently
+        /// folded into the text, a mistyped or badly quoted flag ended up
+        /// *inside* the saved URL — a clip that looks right and whose link is
+        /// dead. Better to refuse the command.
+        var unknown: [String] = []
 
         init(_ args: [String]) {
             var i = 0
@@ -185,6 +211,7 @@ enum CLI {
                 case "--why", "-w": if i + 1 < args.count { why = args[i + 1]; i += 1 }
                 case "--title": if i + 1 < args.count { title = args[i + 1]; i += 1 }
                 case "--extract", "-x": extractPage = true
+                case let arg where arg.hasPrefix("-") && arg != "-": unknown.append(arg)
                 default: words.append(args[i])
                 }
                 i += 1
@@ -194,6 +221,10 @@ enum CLI {
 
     private static func add(_ rest: [String]) {
         let options = AddOptions(rest)
+        if let bad = options.unknown.first {
+            fail("unknown option \(bad). Options are -t <tag>, -w <why>, --title <title>, -x. "
+                 + "Each takes one argument: quote it as a single word.")
+        }
         var text = options.words.joined(separator: " ")
         if text.isEmpty || text == "-" {
             text = String(data: FileHandle.standardInput.readDataToEndOfFile(), encoding: .utf8) ?? ""

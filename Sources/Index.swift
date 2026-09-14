@@ -155,14 +155,22 @@ enum Index {
             let clean = w.trimmingCharacters(in: CharacterSet(charactersIn: "#\"'*"))
                 .replacingOccurrences(of: "\"", with: "")
             guard !clean.isEmpty else { continue }
-            if w.hasPrefix("#") { required.append("tags:\"\(clean)\"*") } else { words.append("\"\(clean)\"*") }
+            if w.hasPrefix("#") { required.append("tags:\"\(clean)\"*") } else { words.append(clean) }
         }
+        // A question is not a query: "comment parler aux utilisateurs avant de
+        // coder" is two words of subject and five of French. Left in, the five
+        // match nearly every clip and drown the two under the ranking. Dropped
+        // — unless that is all there was, in which case the user meant them.
+        // Asked with nothing but filler ("quelque chose qui n'existe pas"),
+        // the query has no subject at all: matching on the filler returns a
+        // handful of unrelated clips, which reads as an answer and is not one.
+        words = words.filter { !Keywords.isNoise($0) }.map { "\"\($0)\"*" }
         if !words.isEmpty {
             required.append(words.count == 1 ? words[0] : "(" + words.joined(separator: " OR ") + ")")
         }
-        guard !required.isEmpty else {
-            return clips("SELECT \(columns) FROM clips ORDER BY captured_at DESC LIMIT ?", [limit])
-        }
+        // Nothing left to match on, yet the user did type something: answering
+        // with the most recent clips would pass off a default for a result.
+        guard !required.isEmpty else { return [] }
         // One word, or none: everything that matches is equally relevant, so the
         // useful order is the one the user thinks in — newest first. Several
         // words: rank them, weighting the lines a human wrote (title, reason,
