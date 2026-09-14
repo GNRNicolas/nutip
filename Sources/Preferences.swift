@@ -88,6 +88,9 @@ final class Preferences: NSObject, NSWindowDelegate, NSTableViewDataSource, NSTa
         grid.column(at: 0).xPlacement = .trailing
         grid.column(at: 0).width = 100
         grid.column(at: 1).width = Preferences.width - 2 * Preferences.margin - 100 - 12
+        // The tag list fills the column; a popup or a checkbox stretched to
+        // the window edge would look wrong, so only this row is filled.
+        grid.cell(atColumnIndex: 1, rowIndex: 2).xPlacement = .fill
         for row in 0..<grid.numberOfRows { grid.row(at: row).yPlacement = .top }
         grid.cell(atColumnIndex: 0, rowIndex: 0).yPlacement = .center
         grid.cell(atColumnIndex: 0, rowIndex: 5).yPlacement = .center
@@ -117,8 +120,11 @@ final class Preferences: NSObject, NSWindowDelegate, NSTableViewDataSource, NSTa
         tagTable.headerView = nil
         tagTable.dataSource = self
         tagTable.delegate = self
-        tagTable.rowHeight = 22
+        tagTable.rowHeight = 24
         tagTable.style = .plain
+        tagTable.usesAlternatingRowBackgroundColors = true
+        tagTable.gridStyleMask = [.solidHorizontalGridLineMask]
+        tagTable.gridColor = .separatorColor
         tagTable.allowsMultipleSelection = true
         tagTable.doubleAction = #selector(renameSelectedTag)
         tagTable.target = self
