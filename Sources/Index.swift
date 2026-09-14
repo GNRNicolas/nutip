@@ -25,6 +25,11 @@ enum Index {
     /// Opens (or creates) the database and brings it in line with the folder.
     /// Returns true when the folder had changed under it, which is the signal
     /// to rewrite every generated page rather than the ones a save touched.
+    /// The cache is optional by design — the files are the truth — but code
+    /// that *writes* from it has to know, or it rebuilds the folder's index
+    /// pages out of an empty database.
+    static var isOpen: Bool { db != nil }
+
     @discardableResult
     static func open() -> Bool {
         close()
@@ -286,7 +291,7 @@ enum Index {
         }
         if let tag {
             return clips("""
-                SELECT \(columns) FROM clips WHERE (' ' || tags_key || ' ') LIKE ?
+                SELECT \(columns) FROM clips WHERE \(Index.hasTag)
                 ORDER BY captured_at DESC LIMIT ?
                 """, ["% \(tag.tagKey) %", limit])
         }
@@ -316,12 +321,16 @@ enum Index {
     static func tagCounts() -> [(String, Int)] {
         var counts: [String: Int] = [:]
         var spellings: [String: [String: Int]] = [:]
-        forEachRow("SELECT tags FROM clips", []) { stmt in
+        // Grouped in SQL. This runs on every save, and the same handful of tag
+        // combinations recur across thousands of clips: one row per distinct
+        // combination instead of one per clip.
+        forEachRow("SELECT tags, COUNT(*) FROM clips GROUP BY tags", []) { stmt in
             guard let c = sqlite3_column_text(stmt, 0) else { return }
+            let repeats = Int(sqlite3_column_int64(stmt, 1))
             for raw in String(cString: c).split(separator: " ") {
                 let tag = String(raw)
-                counts[tag.tagKey, default: 0] += 1
-                spellings[tag.tagKey, default: [:]][tag, default: 0] += 1
+                counts[tag.tagKey, default: 0] += repeats
+                spellings[tag.tagKey, default: [:]][tag, default: 0] += repeats
             }
         }
         let configured = Dictionary(Settings.tags.map { ($0.tagKey, $0) }, uniquingKeysWith: { a, _ in a })
@@ -337,7 +346,7 @@ enum Index {
     static func count(anyOf tags: [String]) -> Int {
         guard db != nil else { return Store.all().filter { $0.tags.contains { tags.containsTag($0) } }.count }
         guard !tags.isEmpty else { return 0 }
-        let clause = tags.map { _ in "(' ' || tags_key || ' ') LIKE ?" }.joined(separator: " OR ")
+        let clause = tags.map { _ in Index.hasTag }.joined(separator: " OR ")
         return count("SELECT COUNT(*) FROM clips WHERE \(clause)", tags.map { "% \($0.tagKey) %" })
     }
 
@@ -356,6 +365,11 @@ enum Index {
     }
 
     // MARK: SQLite plumbing
+
+    /// One spelling of "this clip carries this tag", shared by everything that
+    /// asks: two copies would drift apart in silence the day the separator or
+    /// the folding changes.
+    static let hasTag = "(' ' || tags_key || ' ') LIKE ?"
 
     private static let columns = "clips.path, clips.title, clips.url, clips.source, clips.captured_at, clips.tags, clips.why"
 
@@ -422,7 +436,11 @@ enum Index {
             case let s as String: sqlite3_bind_text(stmt, idx, s, -1, SQLITE_TRANSIENT)
             case let d as Double: sqlite3_bind_double(stmt, idx, d)
             case let n as Int: sqlite3_bind_int64(stmt, idx, Int64(n))
-            default: sqlite3_bind_null(stmt, idx)
+            // A type nobody thought to bind becomes NULL, and the query then
+            // matches nothing with no error raised anywhere. Say it out loud.
+            default:
+                Log.write("index: unbound argument of type \(type(of: arg))")
+                sqlite3_bind_null(stmt, idx)
             }
         }
     }

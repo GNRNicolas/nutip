@@ -399,7 +399,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         field.placeholderString = "Why are you saving this? (optional, press ←)"
         showTagHints()
         setButtons([("Browse", "⌘F", #selector(browsePressed), false), ("Cancel", "esc", #selector(cancelPressed), false),
-                    ("Save", "→", #selector(savePressed), true)])
+                    ("Save", "→", #selector(confirmPressed), true)])
     }
 
     private func showEdit(_ clip: Clip) {
@@ -411,7 +411,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         field.stringValue = clip.why
         field.placeholderString = "Why did you save this? (optional)"
         showTagHints()
-        setButtons([("Back", "esc", #selector(cancelPressed), false), ("Save", "→", #selector(savePressed), true)])
+        setButtons([("Back", "esc", #selector(cancelPressed), false), ("Save", "→", #selector(confirmPressed), true)])
     }
 
     private func showBrowse() {
@@ -425,9 +425,9 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         var specs: [(String, String, Selector, Bool)] = []
         if cameFrom != nil { specs.append(("Back", "esc", #selector(cancelPressed), false)) }
         specs += [("Delete", "⌘D", #selector(deletePressed), false), ("Edit", "⌘E", #selector(editPressed), false),
-                  ("Open Link", "⌘↩", #selector(openLinkPressed), false), ("Open File", "↩", #selector(openPressed), true)]
+                  ("Open Link", "⌘↩", #selector(openLinkPressed), false), ("Open File", "↩", #selector(confirmPressed), true)]
         setButtons(specs)
-        results = Index.search("", tags: activeTags)
+        results = Index.search("")
     }
 
     /// Size the list, put the panel on screen, and start listening for keys.
@@ -470,8 +470,9 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     }
 
     @objc private func openSettings() { hide(); delegate?.paletteWantsSettings(self) }
-    @objc private func savePressed() { confirm(command: false) }
-    @objc private func openPressed() { confirm(command: false) }
+    /// Save, or Open File: the same key in the same place, named for whatever
+    /// the mode makes of it.
+    @objc private func confirmPressed() { confirm(command: false) }
     @objc private func openLinkPressed() { confirm(command: true) }
     @objc private func cancelPressed() { goBack() }
 
@@ -519,12 +520,14 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             empty.stringValue = "No tags yet. Add some in Settings."
         }
         empty.isHidden = rows > 0
-        let rowHeight = showsTagRows ? Palette.tagRowHeight
-            : (results.first?.match.isEmpty == false ? Palette.matchRowHeight : Palette.clipRowHeight)
         // Taller rows, so fewer of them: eight clip rows plus the chrome runs
-        // past the bottom of a laptop screen.
-        let visible = max(1, min(rows, showsTagRows ? Palette.maxRows : maxClipRows(rowHeight)))
-        scrollHeight.constant = rows == 0 ? 56 : CGFloat(visible) * rowHeight + 4
+        // past the bottom of a laptop screen. And rows are not all the same
+        // height — only one carrying a matched passage is three lines — so the
+        // panel adds up the rows it will actually show instead of multiplying
+        // the first one and being wrong about all the others.
+        let visible = max(1, min(rows, showsTagRows ? Palette.maxRows : maxClipRows(Palette.clipRowHeight)))
+        let height = (0..<visible).reduce(CGFloat(0)) { $0 + self.tableView(self.table, heightOfRow: $1) }
+        scrollHeight.constant = rows == 0 ? 56 : height + 4
         panel.layoutIfNeeded()
         panel.setContentSize(NSSize(width: Palette.width, height: panel.contentView!.fittingSize.height))
         if let top = anchorTop {
@@ -532,11 +535,10 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         }
     }
 
+    /// Only ever called for a panel with no anchor yet: `resize` has already
+    /// moved an anchored one, immediately before, every time.
     private func place() {
-        if let top = anchorTop {
-            panel.setFrameOrigin(NSPoint(x: panel.frame.origin.x, y: top - panel.frame.height))
-            return
-        }
+        guard anchorTop == nil else { return }
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]
         let frame = screen.visibleFrame
@@ -688,7 +690,8 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
 
     private func handleBrowse(_ key: Key) -> Bool {
         if key.code == Key.tab { if suggesting { pickSuggestion() }; return true }
-        if key.code == Key.delete, !key.command, field.stringValue.isEmpty, !activeTags.isEmpty {
+        if key.code == Key.delete, !key.command, field.stringValue.isEmpty,
+           !activeTags.isEmpty || !activeFacets.isEmpty {
             removeLastChip()
             return true
         }
@@ -775,28 +778,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private func renderChips() {
         chips.views.forEach { $0.removeFromSuperview() }
         for facet in activeFacets { chips.addArrangedSubview(pill(facet.label, colour: .systemGray)) }
-        for tag in activeTags {
-            // A coloured container with the label inset: a bare label with a
-            // background hugs its glyphs and descenders touch the edge.
-            let pill = NSView()
-            pill.wantsLayer = true
-            pill.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
-            pill.layer?.cornerRadius = 6
-            let label = NSTextField(labelWithString: "#\(tag)")
-            label.font = .systemFont(ofSize: 13, weight: .medium)
-            label.textColor = .white
-            label.translatesAutoresizingMaskIntoConstraints = false
-            pill.addSubview(label)
-            NSLayoutConstraint.activate([
-                label.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 8),
-                label.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -8),
-                label.topAnchor.constraint(equalTo: pill.topAnchor, constant: 3),
-                label.bottomAnchor.constraint(equalTo: pill.bottomAnchor, constant: -4),
-            ])
-            pill.setContentHuggingPriority(.required, for: .horizontal)
-            pill.setContentCompressionResistancePriority(.required, for: .horizontal)
-            chips.addArrangedSubview(pill)
-        }
+        for tag in activeTags { chips.addArrangedSubview(pill("#\(tag)", colour: .controlAccentColor)) }
         let noChips = activeTags.isEmpty && activeFacets.isEmpty
         chips.isHidden = noChips
         fieldGap.constant = noChips ? -2 : 8

@@ -199,28 +199,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
     private func extract(_ url: URL, into clip: Clip) {
         Extractor.shared.extract(url) { [weak self] result in
             guard let result else { return }
-            guard var current = try? Store.read(path: clip.path) else { return }
-            // Undo may have removed the file in the meantime.
-            guard FileManager.default.fileExists(atPath: current.fileURL?.path ?? "") else { return }
-            if current.title == url.domain || current.title.isEmpty, !result.title.isEmpty {
-                current.title = result.title
-            }
-            var article = result.markdown
-            if !result.byline.isEmpty, !article.isEmpty { article = "*\(result.byline)*\n\n" + article }
+            // Undo may have removed the file in the meantime: reading it back
+            // is the check.
+            guard let current = try? Store.read(path: clip.path) else { return }
+            // The browser's title stands until the page gives a better one.
+            let better = (current.title == url.domain || current.title.isEmpty) ? result.title : nil
             do {
-                try Store.save(current)
-                if article.trimmed.isEmpty {
-                    // A video, a paywall, an app: the link and the title are
-                    // all there is. Say so on the clip, so that reading it
-                    // later — or an agent searching it — is not left guessing
-                    // why there is no text.
-                    try Store.append("*(no readable text on this page — the link above is the clip.)*", to: current)
+                try Store.complete(current, title: better, byline: result.byline, markdown: result.markdown)
+                if result.markdown.trimmed.isEmpty {
                     Log.write("extracted: no text at \(url.absoluteString), kept the title")
-                } else {
-                    try Store.append(article, to: current)
                 }
                 if self?.lastClip?.path == clip.path { self?.lastClip = try Store.read(path: clip.path) }
-                if !article.trimmed.isEmpty { Log.write("extracted \(result.markdown.count) chars into \(clip.path)") }
+                if !result.markdown.trimmed.isEmpty {
+                    Log.write("extracted \(result.markdown.count) chars into \(clip.path)")
+                }
             } catch {
                 Log.write("extract save failed: \(error.localizedDescription)")
             }

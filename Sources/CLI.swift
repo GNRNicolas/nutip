@@ -252,9 +252,8 @@ enum CLI {
         // deliberate - but said out loud.
         if isURL, let existing = Index.existing(url: text) {
             let when = Dates.day(existing.capturedAt)
-            let notice = "nutip: already saved on \(when) as \(existing.path)"
-                + (existing.why.isEmpty ? "" : " (\(existing.why))") + ". Saving anyway.\n"
-            FileHandle.standardError.write(notice.data(using: .utf8)!)
+            warn("already saved on \(when) as \(existing.path)"
+                 + (existing.why.isEmpty ? "" : " (\(existing.why))") + ". Saving anyway.")
         }
         do {
             let fallbackTitle = isURL ? (URL(string: text)?.domain ?? text) : text.excerpt(70)
@@ -274,27 +273,20 @@ enum CLI {
     /// has nowhere to hide it, so this is opt-in and blocking.
     private static func readPage(_ url: URL, into clip: Clip, keepTitle: Bool) {
         guard let page = page(at: url) else {
-            FileHandle.standardError.write("nutip: saved, but could not read the page\n".data(using: .utf8)!)
+            warn("saved, but could not read the page")
             return
         }
-        var updated = clip
         if page.markdown.trimmed.isEmpty {
-            // Worth saying out loud: this clip is findable by its title and
-            // its link, and by nothing else.
-            let notice = "nutip: saved, but this page has no readable text (a video, a paywall or an app). "
-                + "Only its title and link are searchable — a -w reason would help.\n"
-            FileHandle.standardError.write(notice.data(using: .utf8)!)
+            warn("saved, but this page has no readable text (a video, a paywall or an app). "
+                 + "Only its title and link are searchable — a -w reason would help.")
         }
-        // Title first, then the text: `append` re-reads the file, so saving the
-        // title afterwards would drop the body.
-        if !keepTitle, !page.title.trimmed.isEmpty, page.title.trimmed != clip.title {
-            updated.title = page.title.trimmed
-            try? Store.save(updated)
-        }
-        if page.markdown.trimmed.isEmpty {
-            try? Store.append("*(no readable text on this page — the link above is the clip.)*", to: updated)
-        } else {
-            try? Store.append(page.markdown, to: updated)
+        do {
+            try Store.complete(clip, title: keepTitle ? nil : page.title.trimmed,
+                               byline: page.byline, markdown: page.markdown)
+        } catch {
+            // Used to be three silent `try?`: the clip stayed empty and the
+            // command still exited 0, which is the worst of both.
+            warn("saved, but could not write the page text: \(error.localizedDescription)")
         }
     }
 
@@ -366,8 +358,16 @@ enum CLI {
         if clips.isEmpty { print("(no clips)") }
     }
 
+    /// Everything Nutip says that is not a result goes here: prefixed, and
+    /// after the standard output it comments on, so a hint never lands above
+    /// the line it explains.
+    private static func warn(_ message: String) {
+        fflush(stdout)
+        FileHandle.standardError.write(Data("nutip: \(message)\n".utf8))
+    }
+
     private static func fail(_ message: String) -> Never {
-        FileHandle.standardError.write("nutip: \(message)\n".data(using: .utf8)!)
+        warn(message)
         exit(1)
     }
 }

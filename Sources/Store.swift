@@ -82,10 +82,13 @@ enum Store {
 
     /// Rewrites a clip in place (frontmatter and body), then regenerates only
     /// the index pages that mention it.
-    static func save(_ clip: Clip) throws {
+    /// `old` is the clip as it is on disk. Callers that have just read it say
+    /// so: `append` used to read the file, hand the result here, and have it
+    /// read and parse the same file a second time.
+    static func save(_ clip: Clip, old known: Clip? = nil) throws {
         guard let file = clip.fileURL else { throw StoreError.noFolder }
         var clip = clip
-        let old = try? read(path: clip.path)
+        let old = known ?? (try? read(path: clip.path)) ?? nil
         if !clip.bodyLoaded {
             // This clip came from the index, which carries no body and no
             // keywords. Taking them from the file is what keeps editing a tag
@@ -109,6 +112,30 @@ enum Store {
         return Keywords.derive(title: clip.title, why: clip.why, body: clip.body, tags: clip.tags)
     }
 
+    /// Writes an extracted page into a clip that is already on disk. Both the
+    /// palette and `nutip add -x` end here, because both had grown their own
+    /// copy of the same four steps and the copies had drifted apart.
+    ///
+    /// Title first: `append` re-reads the file, so saving the title afterwards
+    /// would drop the body that was just written.
+    static func complete(_ clip: Clip, title: String?, byline: String, markdown: String) throws {
+        var updated = clip
+        if let title, !title.isEmpty, title != clip.title {
+            updated.title = title
+            try save(updated)
+        }
+        var article = markdown.trimmed
+        if article.isEmpty {
+            // A video, a paywall, an app: the link and the title are all there
+            // is. Said in the file, so that reading it later — or an agent
+            // searching it — is not left wondering where the text went.
+            article = "*(no readable text on this page — the link above is the clip.)*"
+        } else if !byline.isEmpty {
+            article = "*\(byline)*\n\n" + article
+        }
+        try append(article, to: updated)
+    }
+
     /// Appends extracted page content to an existing clip's body.
     static func append(_ markdown: String, to clip: Clip) throws {
         var updated = try read(path: clip.path) ?? clip
@@ -121,8 +148,9 @@ enum Store {
             trimmed = String(trimmed[..<cut]).trimmed
                 + "\n\n*(truncated by Nutip at \(Settings.bodyLimit) characters. The link above has the rest.)*"
         }
+        let onDisk = updated
         updated.body = updated.body.trimmed.isEmpty ? trimmed : updated.body.trimmed + "\n\n---\n\n" + trimmed
-        try save(updated)
+        try save(updated, old: onDisk)
     }
 
     static func delete(_ clip: Clip) throws {
@@ -299,7 +327,11 @@ enum Store {
     /// the cost of a clip does not grow with the size of the folder. `full`
     /// rewrites everything and removes what is stale (`nutip reindex`).
     static func regenerateIndexes(months: Set<String> = [], tags: Set<String> = [], full: Bool = false) {
-        guard let root = folder else { return }
+        // Without the cache, every count below comes back zero and the pages
+        // would be rewritten empty over perfectly good ones — and `recent`
+        // would fall back to reading every file in the folder, on a save.
+        // Leaving them untouched is the safe failure.
+        guard let root = folder, Index.isOpen else { return }
         let limit = Settings.indexLimit
         let monthCounts = Index.months()
         let tagCounts = Index.tagCounts()
@@ -546,10 +578,14 @@ enum Store {
 
     /// Writes a generated page, unless the user has taken it over (no marker)
     /// or nothing changed.
+    /// Writes a generated page, unless the file there is not ours to write.
+    /// The read has to distinguish "no file" from "unreadable file": one is
+    /// permission to write, the other is a file whose contents we cannot see
+    /// and therefore cannot claim.
     private static func write(_ text: String, to url: URL) {
-        if let existing = try? String(contentsOf: url, encoding: .utf8) {
-            if existing == text { return }
-            if !existing.contains(marker) { return }
+        if FileManager.default.fileExists(atPath: url.path) {
+            guard let existing = try? String(contentsOf: url, encoding: .utf8) else { return }
+            if existing == text || !existing.contains(marker) { return }
         }
         try? writeText(text, to: url)
     }

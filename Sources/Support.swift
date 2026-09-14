@@ -12,8 +12,12 @@ enum Log {
     /// Append-only file for an app that runs for months: it needs a cap.
     private static let sizeLimit = 256 * 1024
 
+    /// UTC, and built once: a log line should not cost an allocation of one of
+    /// Foundation's heaviest objects.
+    private static let stamp = ISO8601DateFormatter()
+
     static func write(_ message: String) {
-        let line = "\(ISO8601DateFormatter().string(from: Date()))  \(message)\n"
+        let line = "\(Log.stamp.string(from: Date()))  \(message)\n"
         guard let data = line.data(using: .utf8) else { return }
         guard let handle = try? FileHandle(forWritingTo: url) else {
             try? data.write(to: url)
@@ -162,20 +166,24 @@ enum Dates {
         return f
     }()
 
-    static func day(_ date: Date) -> String {
+    /// Built once. These are called per clip while writing an index page —
+    /// five hundred lines on every save — and a DateFormatter is among the
+    /// most expensive objects in Foundation to construct. Never mutated after
+    /// this, which is what makes sharing them safe.
+    private static func fixed(_ format: String) -> DateFormatter {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f.string(from: date)
+        f.dateFormat = format
+        return f
     }
+    private static let dayFormat = fixed("yyyy-MM-dd")
+    private static let monthFormat = fixed("yyyy-MM")
 
-    static func month(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM"
-        return f.string(from: date)
-    }
+    static func day(_ date: Date) -> String { dayFormat.string(from: date) }
+    static func month(_ date: Date) -> String { monthFormat.string(from: date) }
 
+    /// Not shared: this one follows the user's locale, which can change under
+    /// a running app.
     static func relative(_ date: Date) -> String {
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .short
