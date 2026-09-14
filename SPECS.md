@@ -216,6 +216,15 @@ unless asked with `-x`: the GUI can hide a fetch behind a closed palette, a
 command cannot, so a script pays for it only when it wants it. `nutip rm`
 exists so an agent tidying the folder does not leave the indexes behind.
 
+## Settings are reachable from the command line
+
+`nutip folder <path>` and `nutip tags add|rm` exist for one reason: an agent
+installing Nutip could do everything except the one decision that matters, the
+folder, because it was only in a window. It had to write `UserDefaults` behind
+the app's back, which the app then overwrote. The two commands close that hole,
+and `DistributedNotificationCenter` tells a running app to re-read its
+preferences (`UserDefaults.didChangeNotification` does not cross processes).
+
 ## What v1 leaves out, on purpose
 
 - **AI inside the app.** Summaries, auto-tags, suggested destinations.

@@ -8,6 +8,8 @@ if CLI.run(Array(CommandLine.arguments.dropFirst())) { exit(0) }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, PaletteDelegate {
     private var statusItem: NSStatusItem!
+    /// Last folder this app acted on, to notice when a command changes it.
+    private var currentFolder: URL?
     private let hotkey = GlobalHotkey()
     private let palette = Palette()
     private let toast = Toast()
@@ -32,6 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
         buildMenu()
 
         registerHotkey()
+        currentFolder = Settings.folder
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(defaultsChanged),
+                                                            name: Settings.changedNotification, object: nil)
         if Settings.folder != nil {
             let changed = Index.open()
             Store.regenerateIndexes(full: changed)
@@ -77,6 +82,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
     }
 
     private func buildMenu() {
+        // These items are properties, so a second call would hand NSMenu an
+        // item that already belongs to a menu: that is an assertion failure,
+        // and the app dies on the spot.
+        for item in [clipItem, undoItem, loginItem, autoUpdateItem] { item.menu?.removeItem(item) }
         let menu = NSMenu()
         menu.delegate = self
         menu.addItem(clipItem)
@@ -115,6 +124,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
             let changed = Index.open()
             Store.regenerateIndexes(full: changed)
         }
+    }
+
+    /// `nutip folder …` or `nutip tags …` writes the same preferences this app
+    /// is reading. Follow them instead of making the user relaunch.
+    @objc private func defaultsChanged() {
+        Settings.defaults.synchronize()
+        guard Settings.folder != currentFolder else { return }
+        currentFolder = Settings.folder
+        Log.write("folder set from outside: \(currentFolder?.path ?? "(none)")")
+        settingsChanged()
     }
 
     // MARK: Capture

@@ -36,20 +36,31 @@ Copy this into Claude Code, Codex, Cursor or whatever you use, and let it do
 the whole thing:
 
 ```text
-Install Nutip on my Mac. It is a macOS menu-bar app, no dependencies, no account.
+Install Nutip on my Mac. It is a macOS menu-bar app: no dependencies, no account,
+and it asks for no macOS permission, so nothing should prompt me.
 
-1. Clone https://github.com/GNRNicolas/nutip into a folder I keep (not /tmp or a
-   temp dir). Ask me where if you are unsure.
+1. Clone https://github.com/GNRNicolas/nutip into a folder I keep (not /tmp). Ask
+   me where if you are unsure.
 2. Run ./build.sh --install in it. It needs the Xcode command line tools: if they
    are missing, tell me to run xcode-select --install rather than guessing.
-3. If I use Claude Code, link the skill that ships with it so you know how to use
-   Nutip later:
-   mkdir -p ~/.claude/skills && ln -sfn "$PWD/skills/nutip" ~/.claude/skills/nutip
-4. Run `nutip doctor` and tell me, in three lines: where my clips will be saved,
-   what the hotkey is, and that the gesture is copy with ⌘C, then the hotkey.
+3. Choose where my clips should live, and this matters more than the rest: one
+   Markdown file per clip goes there, and that folder is what you will read later
+   to answer me. Look at what I already have — a notes repo, an Obsidian vault, a
+   memory folder — propose one place, and once I agree:
+      nutip folder <path>
+   Do not leave it on the default (~/Documents/Nutip) without asking me.
+4. Set the tags I will actually use, as few as possible, from what you know of my
+   work: nutip tags add <tag> <tag>...
+5. If I use Claude Code, link the skill that ships with Nutip, with an absolute
+   path to the clone:
+      mkdir -p ~/.claude/skills && ln -sfn <clone>/skills/nutip ~/.claude/skills/nutip
+6. Run `nutip doctor` and tell me in three lines: where my clips will be saved,
+   what the hotkey is, and that the gesture is copy with ⌘C, then the hotkey. Say
+   that the first launch window is already filled in and I just have to confirm.
 
-Nutip asks for no macOS permission, so nothing should prompt me. If a step fails,
-show me the exact error instead of working around it.
+If a step fails, show me the exact error instead of working around it. If the
+hotkey seems dead once installed, another app has it: macOS gives no warning, so
+tell me to pick another one in the settings window.
 ```
 
 On first launch Nutip asks for a folder and your first tags, and then lives in
@@ -163,7 +174,12 @@ nutip add https://example.com -x    # same, and read the page into the clip
 nutip rm 2026-09/2026-09-13-thing.md   # move a clip to the Trash, indexes updated
 nutip extract https://example.com   # what a page becomes, on stdout
 nutip reindex                       # rebuild INDEX.md, tags/ and the search index
+nutip folder ~/notes/clips          # move the clips folder; no argument prints it
+nutip tags add veille               # what the palette offers; nutip tags rm to drop one
 ```
+
+`folder` and `tags` are what let an agent set Nutip up end to end: everything
+else about the app lives in a window. A running Nutip follows them at once.
 
 ### Settings
 

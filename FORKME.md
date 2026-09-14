@@ -103,6 +103,10 @@ AppleScript error lands there with a reason.
   files.
 - **Adding a column to `clips` means bumping `Index.schema`**, which drops the
   database and rebuilds it. There is no migration and there should not be one.
+- **A stored `NSMenuItem` can only belong to one menu.** `buildMenu` removes
+  its items from their old menu first; hand `NSMenu` an item that still has
+  one and the app aborts on an assertion, with a stack that blames the menu
+  rather than the second call.
 - **The SQLite index is disposable.** If a search looks wrong, `nutip
   reindex` (or the menu item) rebuilds it from the files. Never fix the
   database by hand; fix the parser.

@@ -13,8 +13,9 @@ enum CLI {
       nutip rm <path>                    move a clip to the Trash and update the indexes
       nutip extract <url>                print a page as Markdown (what a clip gets)
       nutip tags                         the configured tags
+      nutip tags add <tag>...            add tags to the palette (also: rm)
+      nutip folder [path]                the clips folder; with a path, move to it
       nutip reindex                      rebuild INDEX.md, tags/*.md and the search index
-      nutip path                         the clips folder
       nutip doctor                       permissions, folder, hotkey
       nutip --help
 
@@ -38,10 +39,10 @@ enum CLI {
             print("permissions none needed: copy, then press the hotkey")
             print("tags       \(Settings.tags.joined(separator: ", "))")
             print("log        ~/Library/Logs/nutip.log")
-        case "path":
-            print(Settings.folder?.path ?? "(no folder set)")
+        case "path", "folder":
+            folder(rest)
         case "tags":
-            Settings.tags.forEach { print($0) }
+            tags(rest)
         case "reindex":
             Index.open()
             let started = Date()
@@ -69,6 +70,79 @@ enum CLI {
             return false
         }
         return true
+    }
+
+    /// `nutip folder` prints it, `nutip folder <path>` moves to it. An agent
+    /// setting Nutip up has no other way in: everything else is in a window.
+    private static func folder(_ rest: [String]) {
+        guard let raw = rest.first else {
+            print(Settings.folder?.path ?? "(no folder set)")
+            return
+        }
+        if ProcessInfo.processInfo.environment["NUTIP_DIR"] != nil {
+            fail("NUTIP_DIR is set: it overrides the folder for this command, so setting one would have no effect")
+        }
+        let path = (raw as NSString).expandingTildeInPath
+        let url = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) {
+            guard isDir.boolValue else { fail("\(url.path) is a file, not a folder") }
+        } else {
+            do { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true) }
+            catch { fail("cannot create \(url.path): \(error.localizedDescription)") }
+        }
+        Settings.folder = url
+        Index.open()
+        Store.regenerateIndexes(full: true)
+        print(url.path)
+        if announce(), isAppRunning() {
+            print("Nutip is running: it has switched to this folder.")
+        }
+    }
+
+    /// `nutip tags` lists them, `nutip tags add|rm <tag>...` edits the list the
+    /// palette offers. Existing clips keep whatever they were tagged with.
+    private static func tags(_ rest: [String]) {
+        guard let verb = rest.first else {
+            Settings.tags.forEach { print($0) }
+            return
+        }
+        let names = Array(rest.dropFirst()).map(Slug.tag).filter { !$0.isEmpty }
+        switch verb {
+        case "add":
+            guard !names.isEmpty else { fail("tags add needs at least one tag") }
+            Settings.tags = (Settings.tags + names).uniquedTags()
+        case "rm", "remove", "delete":
+            guard !names.isEmpty else { fail("tags rm needs at least one tag") }
+            Settings.tags = Settings.tags.filter { !names.containsTag($0) }
+        default:
+            fail("tags takes add or rm, not \(verb)")
+        }
+        Index.open()
+        Store.regenerateIndexes(full: true)
+        _ = announce()
+        Settings.tags.forEach { print($0) }
+    }
+
+    /// Wakes the running app, if any: preferences do not cross processes on
+    /// their own. Returns false when the message could not be sent.
+    @discardableResult
+    private static func announce() -> Bool {
+        Settings.defaults.synchronize()
+        DistributedNotificationCenter.default().postNotificationName(
+            Settings.changedNotification, object: nil, userInfo: nil, deliverImmediately: true)
+        return true
+    }
+
+    private static func isAppRunning() -> Bool {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        task.arguments = ["-f", "Nutip.app/Contents/MacOS/Nutip"]
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
+        try? task.run()
+        task.waitUntilExit()
+        return task.terminationStatus == 0
     }
 
     /// `nutip add <text|url> [-t tag]... [-w why] [--title t] [-x]`

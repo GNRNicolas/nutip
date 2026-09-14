@@ -39,6 +39,9 @@ enum Settings {
         ? .standard : (UserDefaults(suiteName: "fr.nicolasgarnier.nutip") ?? .standard)
 
     static let appName = "Nutip"
+    /// Posted by the CLI after it changes a preference, observed by the running
+    /// app. UserDefaults.didChangeNotification does not cross processes.
+    static let changedNotification = Notification.Name("fr.nicolasgarnier.nutip.settingsChanged")
     static let defaultTags = ["reading", "ideas", "competitors", "reference"]
     static let defaultFolder = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Documents/Nutip")
