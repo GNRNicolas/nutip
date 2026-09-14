@@ -185,7 +185,17 @@ final class Preferences: NSObject, NSWindowDelegate, NSTableViewDataSource, NSTa
         let done = NSButton(title: firstRun ? "Start Clipping" : "Done", target: self, action: #selector(close))
         done.bezelStyle = .rounded
         done.keyEquivalent = "\r"
-        let footer = NSStackView(views: [NSView(), done])
+        // Nutip has no Dock icon and no menu bar of its own, so the only way
+        // out is the tray menu. This window is the other one.
+        let quit = NSButton(title: "", target: self, action: #selector(quit))
+        quit.bezelStyle = .roundRect
+        quit.controlSize = .small
+        let title = NSMutableAttributedString(string: "Quit Nutip", attributes: [
+            .font: NSFont.systemFont(ofSize: 11.5), .foregroundColor: NSColor.labelColor])
+        title.append(NSAttributedString(string: "  ⌘Q", attributes: [
+            .font: NSFont.systemFont(ofSize: 10.5, weight: .medium), .foregroundColor: NSColor.tertiaryLabelColor]))
+        quit.attributedTitle = title
+        let footer = NSStackView(views: [quit, NSView(), done])
         footer.orientation = .horizontal
         return footer
     }
@@ -387,10 +397,21 @@ final class Preferences: NSObject, NSWindowDelegate, NSTableViewDataSource, NSTa
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
             guard let self, self.window?.isKeyWindow == true else { return event }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            // By key code, not by character: "z" is not where AZERTY puts it.
-            guard flags.contains(.command), KeyCodes.forCharacter("z") == UInt32(event.keyCode) else { return event }
-            flags.contains(.shift) ? self.redoTags() : self.undoTags()
-            return nil
+            guard flags.contains(.command) else { return event }
+            // By key code, not by character: those letters are elsewhere on AZERTY.
+            switch UInt32(event.keyCode) {
+            case KeyCodes.forCharacter("z"):
+                flags.contains(.shift) ? self.redoTags() : self.undoTags()
+                return nil
+            case KeyCodes.forCharacter("q"):
+                self.quit()
+                return nil
+            case KeyCodes.forCharacter("w"):
+                self.close()
+                return nil
+            default:
+                return event
+            }
         }
     }
 
@@ -400,6 +421,11 @@ final class Preferences: NSObject, NSWindowDelegate, NSTableViewDataSource, NSTa
     }
 
     @objc private func close() { window?.close() }
+
+    @objc private func quit() {
+        window?.close()
+        NSApp.terminate(nil)
+    }
 
     func windowWillClose(_ notification: Notification) {
         removeUndoMonitor()
