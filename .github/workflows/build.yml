@@ -1,0 +1,28 @@
+# The README promises: clone it, run one script, no dependencies. This is the
+# proof, on a machine that has never seen the project.
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: ./build.sh
+
+      - name: The app is an app
+        run: |
+          test -x build/Nutip.app/Contents/MacOS/Nutip
+          test -f build/Nutip.app/Contents/Info.plist
+          test -f build/Nutip.app/Contents/Resources/Readability.js
+          codesign --verify --verbose build/Nutip.app
+
+      - name: Test
+        run: ./Tools/test.sh build/Nutip.app/Contents/MacOS/Nutip

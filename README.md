@@ -4,6 +4,13 @@
 
 <h1 align="center">Nutip</h1>
 
+<p align="center">
+  <a href="https://github.com/GNRNicolas/nutip/actions/workflows/build.yml"><img src="https://github.com/GNRNicolas/nutip/actions/workflows/build.yml/badge.svg" alt="build"></a>
+  <img src="https://img.shields.io/badge/macOS-13%2B-black" alt="macOS 13+">
+  <img src="https://img.shields.io/badge/dependencies-0-black" alt="no dependencies">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-black" alt="MIT"></a>
+</p>
+
 Save anything as Markdown, for you and your AI. Copy something, press a key,
 pick a tag, done.
 
@@ -258,4 +265,14 @@ Logs go to `~/Library/Logs/nutip.log`.
 ## Fork it
 
 [FORKME.md](FORKME.md) is for changing the app; [SPECS.md](SPECS.md) for why
-it is shaped this way. MIT.
+it is shaped this way.
+
+```sh
+./build.sh          # build it
+./Tools/test.sh     # run the tests against a throwaway folder
+```
+
+Nutip is MIT. It vendors one file it did not write:
+`Resources/Readability.js`, Mozilla's article extractor, Apache 2.0,
+kept with its own licence header. Nothing else is borrowed, and there is
+no package manager anywhere in this repo.

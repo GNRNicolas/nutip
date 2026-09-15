@@ -5,8 +5,8 @@ cd "$(dirname "$0")"
 
 NAME="Nutip"
 ID="fr.nicolasgarnier.nutip"
-VERSION="1.5"
-BUILD="2"
+VERSION="1.6"
+BUILD="3"
 APP="build/$NAME.app"
 
 # Swift's shared module cache is what makes a rebuild take seconds. Leave it
@@ -45,7 +45,9 @@ cp "Resources/$NAME.icns" "$APP/Contents/Resources/"
 cp Resources/Readability.js Resources/tomarkdown.js "$APP/Contents/Resources/"
 
 # --- Binary -----------------------------------------------------------------
-compile -O -target arm64-apple-macos13.0 -lsqlite3 \
+# Built for the machine doing the building: Apple Silicon or Intel. There is
+# no fat binary to ship because there is nothing to ship — you cloned this.
+compile -O -target "$(uname -m)-apple-macos13.0" -lsqlite3 \
   -o "$APP/Contents/MacOS/$NAME" Sources/*.swift
 
 cat > "$APP/Contents/Info.plist" <<PLIST

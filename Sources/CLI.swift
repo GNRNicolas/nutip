@@ -216,14 +216,24 @@ enum CLI {
         /// *inside* the saved URL — a nut that looks right and whose link is
         /// dead. Better to refuse the command.
         var unknown: [String] = []
+        /// A flag whose argument never came: `-w` at the end of the line, or
+        /// `-w $EMPTY` from a shell. Dropping it saved a nut with no reason
+        /// and said nothing, which is the same silence as the bug above.
+        var starved: String?
 
         init(_ args: [String]) {
             var i = 0
+            /// The argument after a flag, or nil at the end of the line.
+            func value(_ flag: String) -> String? {
+                guard i + 1 < args.count else { starved = starved ?? flag; return nil }
+                i += 1
+                return args[i]
+            }
             while i < args.count {
                 switch args[i] {
-                case "--tag", "-t": if i + 1 < args.count { tags.append(args[i + 1]); i += 1 }
-                case "--why", "-w": if i + 1 < args.count { why = args[i + 1]; i += 1 }
-                case "--title": if i + 1 < args.count { title = args[i + 1]; i += 1 }
+                case "--tag", "-t": if let tag = value(args[i]) { tags.append(tag) }
+                case "--why", "-w": if let reason = value(args[i]) { why = reason }
+                case "--title": if let given = value(args[i]) { title = given }
                 case "--extract", "-x": extractPage = true
                 case let arg where arg.hasPrefix("-") && arg != "-": unknown.append(arg)
                 default: words.append(args[i])
@@ -238,6 +248,9 @@ enum CLI {
         if let bad = options.unknown.first {
             fail("unknown option \(bad). Options are -t <tag>, -w <why>, --title <title>, -x. "
                  + "Each takes one argument: quote it as a single word.")
+        }
+        if let starved = options.starved {
+            fail("\(starved) needs an argument. Quote it as a single word: \(starved) \"…\"")
         }
         var text = options.words.joined(separator: " ")
         if text.isEmpty || text == "-" {
