@@ -6,7 +6,8 @@ explains *why* the code is shaped the way it is; this file is about
 
 The app is a handful of Swift files in `Sources/`, no dependencies, no
 package manager, plus two JavaScript files in `Resources/`. `./build.sh`
-compiles it in a few seconds.
+compiles it: about a minute from a cold clone, fifteen seconds once Swift's
+module cache is warm. Measured on an M-series Mac.
 
 `./Tools/test.sh` drives the CLI against a throwaway folder and is the test
 harness for everything under the UI: the file format, the index pages, the
