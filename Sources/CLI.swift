@@ -14,7 +14,7 @@ enum CLI {
       nutip extract <url>                print a page as Markdown (what a nut gets)
       nutip tags                         the configured tags
       nutip tags add <tag>...            add tags to the palette (also: rm)
-      nutip folder [path]                the nuts folder; with a path, move to it
+      nutip folder [path]                the nuts folder; with a path, use that one
       nutip reindex                      rebuild INDEX.md, tags/*.md and the search index
       nutip doctor                       permissions, folder, hotkey
       nutip filters                      every @ filter there is, read from your nuts
@@ -131,8 +131,11 @@ enum CLI {
                         : "\(done) nut\(done == 1 ? "" : "s")\(dry ? " would be enriched (--dry-run)" : " enriched")")
     }
 
-    /// `nutip folder` prints it, `nutip folder <path>` moves to it. An agent
-    /// setting Nutip up has no other way in: everything else is in a window.
+    /// `nutip folder` prints it, `nutip folder <path>` points Nutip at another
+    /// one. It moves no file — and a folder swap that silently leaves every nut
+    /// behind is the kind of thing you notice a week later, so it says so.
+    /// An agent setting Nutip up has no other way in: everything else is in a
+    /// window.
     private static func folder(_ rest: [String]) {
         guard let raw = rest.first else {
             print(Settings.folder?.path ?? "(no folder set)")
@@ -150,12 +153,20 @@ enum CLI {
             do { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true) }
             catch { fail("cannot create \(url.path): \(error.localizedDescription)") }
         }
+        let previous = Settings.folder
+        let leftBehind = previous?.standardizedFileURL == url ? 0 : Store.stamps().count
+
         Settings.folder = url
         Index.open()
         Store.regenerateIndexes(full: true)
         print(url.path)
         if announce(), isAppRunning() {
             print("Nutip is running: it has switched to this folder.")
+        }
+        if leftBehind > 0, let old = previous, Store.stamps().isEmpty {
+            warn("\(leftBehind) nut\(leftBehind == 1 ? "" : "s") stayed in \(old.path). "
+                 + "This command points Nutip at a folder; it never moves files. To bring them along:\n"
+                 + "       mv \(shellQuoted(old.path))/* \(shellQuoted(url.path))/ && nutip reindex")
         }
     }
 
@@ -374,6 +385,13 @@ enum CLI {
     /// Everything Nutip says that is not a result goes here: prefixed, and
     /// after the standard output it comments on, so a hint never lands above
     /// the line it explains.
+    /// A path is about to be pasted into a shell by whoever reads the advice.
+    private static func shellQuoted(_ path: String) -> String {
+        path.contains(where: { !$0.isLetter && !$0.isNumber && !"/._-".contains($0) })
+            ? "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+            : path
+    }
+
     private static func warn(_ message: String) {
         fflush(stdout)
         FileHandle.standardError.write(Data("nutip: \(message)\n".utf8))

@@ -101,7 +101,7 @@ overwritten on the next nut.
 
 ```sh
 nutip folder                      # where the nuts are
-nutip folder ~/notes/nuts        # move to another folder (creates it)
+nutip folder ~/notes/nuts        # use that folder from now on (creates it, moves nothing)
 nutip tags add veille pricing     # what the palette offers; nutip tags rm to drop one
 ```
 

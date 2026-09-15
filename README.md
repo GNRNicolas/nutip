@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/icon.png" width="120" alt="">
+  <img src="docs/icon.webp" width="120" alt="">
 </p>
 
 <h1 align="center">Nutip</h1>
@@ -23,7 +23,7 @@ No account, no permission to grant, no database you cannot open, no AI
 inside. The folder is the product.
 
 <p align="center">
-  <img src="docs/capture.png" width="760" alt="The Nutip palette over a browser: the page being saved, a why field, the tag list, and Save">
+  <img src="docs/capture.webp" width="760" alt="The Nutip palette over a browser: the page being saved, a why field, the tag list, and Save">
 </p>
 
 ## Install
@@ -121,7 +121,7 @@ matched, with your words in bold, so you pick without opening anything.
   **⌘E** edits tags and note, **⌘D** deletes.
 
 <p align="center">
-  <img src="docs/browse.png" width="760" alt="Browse mode: a #reading filter chip in the search field and the list of nuts below">
+  <img src="docs/browse.webp" width="760" alt="Browse mode: a #reading filter chip in the search field and the list of nuts below">
 </p>
 
 ### The folder
@@ -219,7 +219,7 @@ nutip extract https://example.com   # what a page becomes, on stdout
 nutip reindex                       # rebuild INDEX.md, tags/ and the search index
 nutip doctor                        # folder, hotkey, tags, where the log is
 nutip enrich                        # give keywords to the nuts that have none (--dry-run to preview)
-nutip folder ~/notes/nuts          # move the nuts folder; no argument prints it
+nutip folder ~/notes/nuts          # use that folder from now on; no argument prints it
 nutip tags add veille               # what the palette offers; nutip tags rm to drop one
 ```
 
@@ -232,7 +232,7 @@ The folder, your tags, the hotkey and whether Nutip starts at login. That is
 the whole of it.
 
 <p align="center">
-  <img src="docs/settings.png" width="620" alt="Nutip settings: folder, tags, how it works, shortcut, open at login">
+  <img src="docs/settings.webp" width="620" alt="Nutip settings: folder, tags, how it works, shortcut, open at login">
 </p>
 
 ## Permissions
