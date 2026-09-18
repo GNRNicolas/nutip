@@ -36,7 +36,12 @@ enum CLI {
             print(usage)
         case "doctor":
             print("app        \(Resources.appPath)")
-            print("folder     \(Settings.folder?.path ?? "(none)")")
+            // A folder that is not there is the one thing in here that is
+            // worth a warning: everything else keeps working without it.
+            let missing = Store.missingFolder != nil
+                ? "  \u{26A0} not found: moved, renamed, or on a disk that is not connected"
+                : ""
+            print("folder     \(Settings.folder?.path ?? "(none)")\(missing)")
             print("hotkey     \(Hotkey.current.label)")
             print("permissions none needed: copy, then press the hotkey")
             print("tags       \(Settings.tags.joined(separator: ", "))")

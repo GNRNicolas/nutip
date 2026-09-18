@@ -331,6 +331,37 @@ check "and saves nothing either"          test "$(count_nutfiles)" -eq "$before"
 saved=$(grep -rh '^url:' "$D/$MONTH" 2>/dev/null)
 check "no flag text ever leaks into a saved url" not_contains "$saved" "-w"
 
+# --- 9. A folder that is not there any more ----------------------------------
+# A Mac restored under another user name, a renamed folder, an external disk
+# left at home: the path in the preferences stops resolving. Nutip used to
+# create it back without a word, which is how a folder of nuts comes back empty
+# and looks lost. `doctor` has to say it, and nothing may write on a guess.
+group "missing folder"
+fresh h
+
+nut add "a nut before the folder goes" -t reading -w "so the folder is not empty"
+check "a nut is there to lose" test "$(count_nutfiles)" -eq 1
+GONE="$D"
+mv "$D" "$D-moved"
+
+nut doctor
+check "doctor reports the folder as missing"  contains "$OUT" "not found"
+check "doctor still names the path"           contains "$OUT" "$GONE"
+check "doctor did not recreate the folder"    test ! -d "$GONE"
+
+nut reindex
+check "reindex writes no index into thin air" test ! -d "$GONE"
+
+# NUTIP_DIR names a folder for this one command: creating it is what the caller
+# asked for, and scripts have always relied on it. Only a remembered folder is
+# a question.
+nut add "nut after the folder went" -t reading -w "explicitly asked for"
+check "an explicit NUTIP_DIR still creates its folder" test "$ST" -eq 0
+check "and the folder is back"                          test -d "$GONE"
+check "with only the new nut in it"                     test "$(count_nutfiles)" -eq 1
+check "the moved nuts were not touched"                 test -d "$D-moved/$MONTH"
+DIRS+=("$D-moved")
+
 # --- Summary ----------------------------------------------------------------
 printf '\n%s\n' "----------------------------------------"
 printf '%d tests, %d failed' "$total" "$failed"

@@ -37,9 +37,34 @@ enum Store {
     static let generatedNames: Set<String> = ["INDEX.md", "README.md", "AGENTS.md"]
     static let tagsDirectory = "tags"
 
+    /// The configured folder when it is not there any more: moved or renamed
+    /// in the Finder, on a disk that is not mounted, or left behind by a
+    /// migration to a Mac whose user name differs. Nil when all is well.
+    ///
+    /// Nutip used to create it back, and that is the failure worth avoiding:
+    /// an empty folder appears where the old one was, the nuts look lost, and
+    /// the real ones are still sitting wherever the user left them. Everything
+    /// that writes into the folder asks this first and stops.
+    ///
+    /// It answers for whatever named the folder, NUTIP_DIR included: `doctor`
+    /// has to be able to say that a NUTIP_DIR pointing nowhere points nowhere.
+    /// Creating one on demand is `ensureFolder`'s business, not this one's.
+    static var missingFolder: URL? {
+        guard let folder else { return nil }
+        var isDirectory: ObjCBool = false
+        let there = FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory)
+        return there && isDirectory.boolValue ? nil : folder
+    }
+
     static func ensureFolder() throws -> URL {
         guard let folder else { throw StoreError.noFolder }
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        // NUTIP_DIR names a folder for this one command: creating it is what
+        // was asked for. A remembered folder that vanished is a question.
+        if Settings.folderFromEnvironment {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            return folder
+        }
+        if let missing = missingFolder { throw StoreError.folderMissing(missing) }
         return folder
     }
 
@@ -345,7 +370,7 @@ enum Store {
         // would be rewritten empty over perfectly good ones — and `recent`
         // would fall back to reading every file in the folder, on a save.
         // Leaving them untouched is the safe failure.
-        guard let root = folder, Index.isOpen else { return }
+        guard let root = folder, missingFolder == nil, Index.isOpen else { return }
         let limit = Settings.indexLimit
         let monthCounts = Index.months()
         let tagCounts = Index.tagCounts()
@@ -614,9 +639,20 @@ enum Store {
 
 enum StoreError: LocalizedError {
     case noFolder
+    case folderMissing(URL)
     var errorDescription: String? {
         switch self {
         case .noFolder: return "No nuts folder is set. Open Nutip and choose one."
+        case .folderMissing(let url):
+            return "Nutip cannot find your nuts folder: \(url.path)"
+        }
+    }
+    var recoverySuggestion: String? {
+        switch self {
+        case .noFolder: return nil
+        case .folderMissing:
+            return "It may have been moved or renamed, or it may be on a disk that is not connected. "
+                 + "Nothing was written: your nut is still waiting."
         }
     }
 }

@@ -66,6 +66,14 @@ enum Settings {
         set { defaults.set(newValue?.path, forKey: "folder") }
     }
 
+    /// True when the folder above came from NUTIP_DIR rather than from the
+    /// preferences. A folder named on the command line is one the caller is
+    /// asking for right now, so creating it is the right answer; a folder the
+    /// preferences merely remember is not — see `Store.missingFolder`.
+    static var folderFromEnvironment: Bool {
+        !(ProcessInfo.processInfo.environment["NUTIP_DIR"] ?? "").isEmpty
+    }
+
     /// The user's tags, in the order the palette lists them: the first nine
     /// answer to the keys 1 to 9.
     static var tags: [String] {

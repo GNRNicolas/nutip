@@ -256,18 +256,33 @@ final class Preferences: NSObject, NSWindowDelegate, NSTableViewDataSource, NSTa
     // MARK: Actions
 
     @objc private func chooseFolder() {
+        guard let url = Preferences.askForFolder() else { return }
+        Settings.folder = url
+        refresh()
+        onChange?()
+    }
+
+    /// The folder panel, shared with the alert that comes up when the folder
+    /// has gone missing: both are the same question, and a second panel that
+    /// drifted from this one would start in a different place.
+    /// Returns nil when the panel was cancelled; it sets no preference.
+    static func askForFolder() -> URL? {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Use This Folder"
-        panel.directoryURL = Settings.folder ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents")
-        if panel.runModal() == .OK, let url = panel.url {
-            Settings.folder = url
-            refresh()
-            onChange?()
+        // A folder that is gone cannot be shown, so fall back to the nearest
+        // parent that still exists rather than opening on nothing.
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        var start = Settings.folder ?? home.appendingPathComponent("Documents")
+        while !FileManager.default.fileExists(atPath: start.path), start.path != "/" {
+            start = start.deletingLastPathComponent()
         }
+        panel.directoryURL = start.path == "/" ? home : start
+        guard panel.runModal() == .OK else { return nil }
+        return panel.url
     }
 
 
