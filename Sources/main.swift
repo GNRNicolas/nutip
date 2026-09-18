@@ -45,12 +45,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
                                                             name: Settings.changedNotification, object: nil)
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(browse),
                                                             name: Settings.openNotification, object: nil)
-        if Settings.folder != nil {
+        if Settings.folder != nil, Store.missingFolder == nil {
             let changed = Index.open()
             Store.regenerateIndexes(full: changed)
         }
         if !Settings.onboarded || Settings.folder == nil {
             preferences.show(firstRun: true)
+        } else if let missing = Store.missingFolder {
+            // Ask now rather than at the hotkey: a folder that moved is
+            // usually noticed on the first launch after moving it, and being
+            // told then costs nothing. Async so the menu bar is up first.
+            DispatchQueue.main.async { [weak self] in self?.resolveMissingFolder(missing) }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { Updater.check(manual: false) }
         installTestHooks()
@@ -143,7 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
 
     private func settingsChanged() {
         registerHotkey()
-        if Settings.folder != nil {
+        if Settings.folder != nil, Store.missingFolder == nil {
             let changed = Index.open()
             Store.regenerateIndexes(full: changed)
         }
@@ -173,6 +178,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
 
     @objc private func browse() {
         guard Settings.folder != nil else { preferences.show(firstRun: true); return }
+        if let missing = Store.missingFolder {
+            resolveMissingFolder(missing) { [weak self] in self?.palette.show(.browse) }
+            return
+        }
         palette.show(.browse)
     }
 
@@ -197,12 +206,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
                        reason: addReason) { [weak self] in self?.undoLast() }
             Log.write("saved \(nut.path)")
             if let url = ctx.url.flatMap(URL.init(string:)) { extract(url, into: nut) }
+        } catch StoreError.folderMissing(let folder) {
+            Log.write("save failed: folder missing \(folder.path)")
+            // The nut is not lost, it is waiting: whatever the user answers
+            // about the folder, the same save runs again right after.
+            resolveMissingFolder(folder) { [weak self] in
+                self?.palette(palette, didCapture: ctx, tags: tags, why: why)
+            }
         } catch {
             Log.write("save failed: \(error.localizedDescription)")
             let alert = NSAlert(error: error)
             NSApp.activate(ignoringOtherApps: true)
             alert.runModal()
         }
+    }
+
+    /// The folder is set but is not there any more. Never write anywhere on a
+    /// guess and never recreate it in silence: name the path, and let the user
+    /// point Nutip at the folder again — it is usually still on disk, under
+    /// another name or on a disk to plug back in.
+    /// `retry` is the save that was interrupted; it runs only once the folder
+    /// question has an answer, so the detour costs the user nothing.
+    private func resolveMissingFolder(_ folder: URL, retry: (() -> Void)? = nil) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Nutip cannot find your nuts folder"
+        alert.informativeText = folder.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
+            + "\n\nIt may have been moved or renamed, or it may be on a disk that is not "
+            + "connected. Nothing was written"
+            + (retry == nil ? "." : ": your nut is still waiting.")
+        alert.addButton(withTitle: "Choose a Folder…")
+        alert.addButton(withTitle: "Create It Again")
+        alert.addButton(withTitle: "Cancel")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            guard let chosen = Preferences.askForFolder() else { return }
+            Settings.folder = chosen
+            Log.write("folder chosen after it went missing: \(chosen.path)")
+        case .alertSecondButtonReturn:
+            do { try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
+            catch {
+                Log.write("could not recreate \(folder.path): \(error.localizedDescription)")
+                NSAlert(error: error).runModal()
+                return
+            }
+            Log.write("folder recreated: \(folder.path)")
+        default:
+            return
+        }
+        currentFolder = Settings.folder
+        settingsChanged()
+        retry?()
     }
 
     /// Fetches the page after the palette has closed, and completes the file.
@@ -261,7 +317,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Palett
 
     @objc private func openFolder() {
         guard let folder = Settings.folder else { preferences.show(firstRun: true); return }
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        if let missing = Store.missingFolder {
+            resolveMissingFolder(missing) { [weak self] in self?.openFolder() }
+            return
+        }
         NSWorkspace.shared.open(folder)
     }
 

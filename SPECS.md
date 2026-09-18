@@ -40,6 +40,29 @@ on `nutip reindex`. It lives in
 nothing is lost. This is what lets the user keep the folder in Git, Obsidian,
 iCloud or Dropbox without Nutip being involved.
 
+### A folder that is not there
+
+The path in the preferences stops resolving more often than it looks: a Mac
+restored under another user name, a folder renamed in the Finder, a vault moved,
+an external disk left at home. Nutip used to call `createDirectory` on the way
+in and carry on. That is the wrong answer twice over — an empty folder appears
+where the old one was, the nuts look lost, and the real ones are still sitting
+wherever the user left them; and when the parent is not writable either, the
+only thing said is Cocoa's own "you don't have permission to save the file", a
+sentence that names neither the path nor a way out.
+
+So `Store.missingFolder` is asked before anything writes, and everything that
+writes stops: `ensureFolder`, `regenerateIndexes`, launch, browse, Open Folder.
+The app names the path and offers the two answers that exist — point Nutip at
+the folder again, or start a new one there — and the nut that was being saved
+is held and written once the question is answered, because losing it to a
+dialog would be the third wrong answer. `nutip doctor` marks the folder
+`⚠ not found`.
+
+Creating a folder is left to the moment someone names one: the panel in
+Preferences, `nutip folder <path>`, and `NUTIP_DIR`, which is a folder asked
+for by the command at hand rather than one the preferences merely remember.
+
 ### One file per nut
 
 Appending to one file per tag was the first idea. Rejected: an append is the
