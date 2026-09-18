@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 NAME="Nutip"
 ID="fr.nicolasgarnier.nutip"
-VERSION="1.6"
+VERSION="1.7"
 BUILD="3"
 APP="build/$NAME.app"
 
