@@ -20,6 +20,7 @@ that were rejected.
 | `PaletteViews.swift` | `KeyPanel`, `TagCell`, `NutCell` | The panel subclass and the rows |
 | `Preview.swift` | `PreviewPane` | The pane beside the browse list: what the highlighted nut says |
 | `Toast.swift` | `Toast` | Saved confirmation with Undo |
+| `Backdrop.swift` | `Backdrop`, `Wash` | The screen dimmed behind the palette |
 | `Preferences.swift` | `Preferences` | Onboarding and settings, one window |
 | `Shortcuts.swift` | `Hotkey`, `GlobalHotkey` | The global shortcut (Carbon) |
 | `Updater.swift` | `Updater` | Daily version check against GitHub |
@@ -288,6 +289,36 @@ content view's constraints determine its size, so autolayout owns the width; a
 `setContentSize` that disagrees is overruled on the next pass and the panel
 snaps to the narrowest its content allows. Browse found that out by coming up
 at 445 points instead of 1040, having been asked for 1040 and told it got it.
+
+### The screen behind the palette is dimmed
+
+The palette floats over whatever the user was doing, and over a busy screen it
+competes with it: a page of text behind a page of text. `Backdrop` is one
+borderless panel covering every screen, black at 28%, one level below the
+palette, faded in and out with it. Two screens matter: a second display left
+bright beside a dimmed one reads as a glitch rather than as focus.
+
+**It never takes a click.** `ignoresMouseEvents` is the whole safety argument:
+this is a window covering every screen the user owns, and a wash that swallowed
+clicks would, if it ever failed to disappear, be a locked machine. One that does
+not is a tint, and everything under it stays reachable. It is shown in `present`
+and hidden in `hide`, which is the single door every dismissal already goes
+through.
+
+The wash is painted in `draw`. Two tidier-looking ways of tinting a window were
+tried first and **both failed in exactly the same silent way** — the window came
+up on screen, full size, at alpha 1, and perfectly transparent:
+
+- `view.wantsLayer = true` followed by `view.layer?.backgroundColor = …` does
+  nothing when the layer is not ready on the very next line, and the optional
+  chaining swallows it.
+- `window.backgroundColor` with an alpha needs a display pass that
+  `setFrame(_:display: false)` never asks for.
+
+`CGWindowListCopyWindowInfo` is what settled it, by reporting the window as
+on-screen at alpha 1 while the screenshot showed nothing: that ruled out the
+level, the frame and the fade in one reading, and left the drawing. A `draw`
+that fills its rect cannot be skipped and cannot be a no-op.
 
 ## Global shortcut
 
