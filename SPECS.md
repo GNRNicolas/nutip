@@ -271,8 +271,17 @@ browse. Two changes make the list somewhere you can wander:
   `nutip recent|search --offset N` is the same paging from the command line,
   and it is what the black-box tests can reach.
 
-Browse is wider than a capture (1040 against 720) so the list keeps a readable
-width and the pane gets a column of prose rather than hyphenated words.
+Browse is wider and taller than a capture, and both dimensions are read off the
+screen rather than fixed, so one build is right on a laptop and on a desk
+display. The width is capped at 1320pt — past that a panel has stopped being a
+palette — and the list takes 36% of it, held between 360 and 500pt: narrower and
+every title truncates, wider and the prose beside it does.
+
+The height is the share of the screen left once the chrome is paid for, and the
+chrome was **guessed at 260pt when it is 143** — measured twice, from a panel of
+503pt showing six rows and one of 563 showing seven. Guessing high does not make
+a panel safer, it makes it shorter than asked: browse came up two rows shy of
+the screen it was told to fill.
 
 **The panel's width is a constraint, not a `setContentSize` argument.** Its
 content view's constraints determine its size, so autolayout owns the width; a

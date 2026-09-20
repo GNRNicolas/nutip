@@ -86,10 +86,18 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private var cameFrom: CaptureContext?
 
     private static let width: CGFloat = 720
-    /// Browse is wider: the list keeps a readable width and the pane beside it
-    /// gets a column of prose rather than a column of hyphenated words.
-    private static let browseWidth: CGFloat = 1040
-    private static let listColumnWidth: CGFloat = 400
+    /// Browse is wider and taller than a capture: a capture is three lines and
+    /// a tag list, browse is a list you read down with a page of prose beside
+    /// it. Both dimensions are read off the screen rather than fixed, so one
+    /// build is right on a laptop and on a desk display — capped, because a
+    /// panel as wide as a 5K display has stopped being a palette.
+    private static let browseWidthCap: CGFloat = 1320
+    private static let browseSideMargin: CGFloat = 140
+    /// The share of the panel the list takes, and the bounds it stays inside:
+    /// narrower and every title truncates, wider and the prose beside it does.
+    private static let listShare: CGFloat = 0.36
+    private static let listWidthFloor: CGFloat = 360
+    private static let listWidthCeiling: CGFloat = 500
     private static let pageSize = 50
     private static let pad: CGFloat = 24
     private static let tagRowHeight: CGFloat = 30
@@ -240,7 +248,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             view.heightAnchor.constraint(equalTo: listSplit.heightAnchor).isActive = true
         }
         previewLine.widthAnchor.constraint(equalToConstant: 1).isActive = true
-        listWidth = scroll.widthAnchor.constraint(equalToConstant: Palette.listColumnWidth)
+        listWidth = scroll.widthAnchor.constraint(equalToConstant: listColumnWidth)
         return listSplit
     }
 
@@ -255,7 +263,19 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         listWidth.isActive = on
     }
 
-    private var panelWidth: CGFloat { preview.isHidden ? Palette.width : Palette.browseWidth }
+    private var usableScreen: NSRect {
+        (panel.screen ?? NSScreen.main ?? NSScreen.screens[0]).visibleFrame
+    }
+
+    private var browseWidth: CGFloat {
+        max(Palette.width, min(Palette.browseWidthCap, usableScreen.width - Palette.browseSideMargin))
+    }
+
+    private var listColumnWidth: CGFloat {
+        min(max(browseWidth * Palette.listShare, Palette.listWidthFloor), Palette.listWidthCeiling)
+    }
+
+    private var panelWidth: CGFloat { preview.isHidden ? Palette.width : browseWidth }
 
     /// Icon, name and folder path, with the settings gear pushed to the right.
     private func makeHeader() -> NSStackView {
@@ -571,13 +591,20 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     /// `resize` leaves the position alone and `place` decides it.
     private var placed = false
 
-    /// How many nut rows fit. Browse is a list: it should use the screen it
-    /// is on, not a number picked for a laptop. Everything but the list —
-    /// header, field, chips, buttons — is about 260pt, and the panel stops at
-    /// three quarters of the usable height so it never runs off the bottom.
+    /// How many nut rows fit. Browse is a list: it should use the screen it is
+    /// on, not a number picked for a laptop. The panel stops short of the
+    /// usable height so it never runs off the bottom.
+    ///
+    /// `chrome` is everything that is not the list — header, field, chips,
+    /// footer, separators. It was guessed at 260pt and it is 143: measured
+    /// twice, from a panel of 503pt showing six rows and one of 563 showing
+    /// seven. Guessing high does not make the panel safer, it makes it
+    /// shorter than asked, which is how a window meant to fill the screen
+    /// came up two rows shy of it.
+    private static let heightShare: CGFloat = 0.85
+    private static let chrome: CGFloat = 150
     private func maxNutRows(_ rowHeight: CGFloat) -> Int {
-        let screen = (panel.screen ?? NSScreen.main ?? NSScreen.screens[0]).visibleFrame.height
-        return max(3, Int((screen * 0.75 - 260) / rowHeight))
+        max(3, Int((usableScreen.height * Palette.heightShare - Palette.chrome) / rowHeight))
     }
 
     private func resize() {
@@ -607,6 +634,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         // leave the header where the eye left it.
         let before = panel.frame
         panelWidthConstraint.constant = panelWidth
+        listWidth.constant = listColumnWidth
         panel.layoutIfNeeded()
         panel.setContentSize(NSSize(width: panelWidth, height: panel.contentView!.fittingSize.height))
         if placed {
