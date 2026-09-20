@@ -163,7 +163,7 @@ final class PreviewPane: NSView {
         ]
         let out = NSMutableAttributedString()
         var blanks = 0
-        for raw in unwrap(capped).components(separatedBy: "\n") {
+        for raw in Tidy.unwrapped(capped).components(separatedBy: "\n") {
             let line = raw.trimmingCharacters(in: .whitespaces)
             var isHeading = false
             var content = ""
@@ -201,34 +201,6 @@ final class PreviewPane: NSView {
                                           attributes: isHeading ? heading : body))
         }
         return out
-    }
-
-    /// Markdown wrapped across lines, put back on one. A link or an image
-    /// whose target is long is regularly broken mid-URL by whatever produced
-    /// the file, and `strip` reads one line at a time: the opening half stays
-    /// as it is and the tail turns up on its own line as `.webp)`. Joined
-    /// first, both halves disappear together.
-    private static func unwrap(_ text: String) -> String {
-        var out: [String] = []
-        var held = ""
-        var joins = 0
-        for raw in text.components(separatedBy: "\n") {
-            let line = held.isEmpty ? raw : held + raw.trimmingCharacters(in: .whitespaces)
-            let opens = line.filter { $0 == "(" }.count
-            let closes = line.filter { $0 == ")" }.count
-            // Five is well past any real URL split, and it stops a file with
-            // one stray bracket from swallowing the rest of itself.
-            if line.contains("]("), opens > closes, joins < 5 {
-                held = line
-                joins += 1
-                continue
-            }
-            out.append(line)
-            held = ""
-            joins = 0
-        }
-        if !held.isEmpty { out.append(held) }
-        return out.joined(separator: "\n")
     }
 
     /// Inline markers that say nothing once the text is styled, and links

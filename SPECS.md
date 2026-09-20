@@ -15,6 +15,7 @@ that were rejected.
 | `Index.swift` | `Index` | SQLite FTS5 over the nuts, rebuilt from the files |
 | `Capture.swift` | `CaptureContext`, `Capture` | The clipboard, and the page it was copied from |
 | `Extractor.swift` | `Extractor` | Hidden `WKWebView` + Readability.js + `tomarkdown.js` |
+| `Tidy.swift` | `Tidy` | The pass between the extractor and the file: no pictures, no stray space |
 | `Palette.swift` | `Palette` | The floating panel and its three modes |
 | `PaletteViews.swift` | `KeyPanel`, `TagCell`, `NutCell` | The panel subclass and the rows |
 | `Preview.swift` | `PreviewPane` | The pane beside the browse list: what the highlighted nut says |
@@ -148,6 +149,38 @@ Quoted strings, a flow list for tags, ISO 8601 with offset. No YAML library
 on either side: `Store.render` writes it, `Store.parse` reads it with a
 `firstIndex(of: ":")`. Nutip only has to round-trip its own output; the
 human-readable and tool-readable properties matter more than YAML coverage.
+
+### A page arrives with things that are not text
+
+Nutip is text only, and an extracted page does not know that. A README comes
+with a row of shield badges, a logo, a hero screenshot; a marketing page comes
+with a dozen `![](…)` and a scattering of non-breaking spaces. On a real
+folder, **5% of all body lines held nothing but images**, and one nut lost more
+than half its bytes to image URLs alone. None of it is text, and all of it is
+read as text: in an editor a row of six badges is six broken images, which is a
+hole in the middle of the page.
+
+`Tidy.markdown` runs once, in `Extractor`, which is the one door every saved
+page comes through — so `nutip extract` prints exactly what a save writes. It
+drops images and the links wrapped around them, folds the exotic spaces back
+into the space bar, removes what trails at the end of a line, and collapses a
+run of blank lines to one.
+
+Two judgements in it are worth stating, because both could have gone the other
+way:
+
+- **An alt text survives only when it is a sentence** — thirty characters with
+  a space in them. Most alts are a file name or a layout hint (`line`, `Blur`,
+  `hero-screenshot`, the project's own name) and lose nothing by going. The few
+  that describe the picture are the only text that picture ever had, so they
+  stay, as plain prose.
+- **A fenced code block is not touched at all.** The whitespace in there is the
+  content. Tables keep their empty cells for the same reason: `| a |  | b |` is
+  a shape, not stray spacing.
+
+`nutip tidy` runs the same pass on stdin. The extractor needs a network and the
+tests do not have one, so that command is how all twenty-one of the rules above
+are actually checked — and it is a way to put an older nut through them by hand.
 
 ## Capture: the clipboard, and only the clipboard
 

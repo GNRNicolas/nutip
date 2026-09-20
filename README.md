@@ -89,6 +89,8 @@ over whatever you are doing:
 - Copied text becomes a text nut. A copied link becomes a link nut. Text
   copied from a web page in Safari, Chrome, Arc, Brave or Edge keeps the
   page it came from: the browser puts it on the clipboard, Nutip reads it.
+  What is saved is the text: images, logos and shield badges are dropped on the
+  way in, since Nutip keeps text and a row of badges is a hole in the page.
 - **↑↓** move through your tags, **1–9** (or **⌘1–9**) tick them, several are
   fine. **←** jumps to a one-line note: *why* you are saving this.
 - **→** saves, with the tags you ticked, or with the highlighted one if you
@@ -220,6 +222,7 @@ nutip add https://example.com -t reading -w "the pricing table"
 nutip add https://example.com -x    # same, and read the page into the nut
 nutip rm 2026-09/2026-09-13-thing.md   # move a nut to the Trash, indexes updated
 nutip extract https://example.com   # what a page becomes, on stdout
+nutip tidy < page.md                # the same clean-up a saved page gets, on stdin
 nutip reindex                       # rebuild INDEX.md, tags/ and the search index
 nutip doctor                        # folder, hotkey, tags, where the log is
 nutip enrich                        # give keywords to the nuts that have none (--dry-run to preview)
