@@ -198,6 +198,99 @@ nut recent 3 --offset banana
 check "a non-numeric --offset is refused" test "$ST" -eq 1
 check "and says what it wanted"           contains "$ERR" "--offset"
 
+# --- 2c. Tidy ---------------------------------------------------------------
+# What runs between the extractor and the file. Nutip is text only, so a page's
+# pictures are not content: they are a hole in the middle of it. Driven through
+# `nutip tidy`, which is the same pass the extractor runs, on stdin — the
+# extractor itself needs a network and these tests do not have one.
+group "tidy"
+
+tidy() { OUT=$(printf '%s' "$1" | "$BIN" tidy 2>"$ROOT/.err"); ST=$?; ERR=$(cat "$ROOT/.err"); }
+
+tidy '![](https://cdn.example.com/a.png)
+
+Real text.'
+check "an image with no alt leaves nothing behind" not_contains "$OUT" "cdn.example.com"
+check "and the text around it stays"               contains "$OUT" "Real text."
+check "and it does not leave a blank line at the top" test "$(printf '%s' "$OUT" | head -1)" = "Real text."
+
+tidy 'Before
+
+[![Stars](https://camo.example.com/1)](https://example.com/stars) [![Build](https://camo.example.com/2)](https://example.com/build)
+
+After'
+check "a row of badges goes whole"      not_contains "$OUT" "camo.example.com"
+check "and takes its link with it"      not_contains "$OUT" "example.com/stars"
+check "leaving one blank line, not two" test "$(printf '%s' "$OUT")" = "$(printf 'Before\n\nAfter')"
+
+tidy '![Screenshot of two GitHub pages side by side, showing commit history.](https://e.com/a.png)'
+check "an alt that is a real description survives as prose" contains "$OUT" "Screenshot of two GitHub pages"
+check "and loses the picture"                               not_contains "$OUT" "e.com/a.png"
+
+tidy '![line](https://e.com/a.png)
+![Blur](https://e.com/b.png)
+![hero-screenshot](https://e.com/c.png)'
+check "a layout-hint alt is not prose" not_contains "$OUT" "hero-screenshot"
+check "nor is a one-word one"          not_contains "$OUT" "Blur"
+
+# The whitespace in a code block is the content. Nothing in there may move.
+FENCED='Text.
+
+```
+def f():
+    if x:
+        return 1
+
+
+    return 2
+```
+
+End.'
+tidy "$FENCED"
+check "a fenced block keeps its indentation" contains "$OUT" "        return 1"
+check "and its own blank lines"              contains "$OUT" "$(printf 'return 1\n\n\n    return 2')"
+check "and the text after it"                contains "$OUT" "End."
+
+tidy 'one
+
+
+two
+
+
+
+
+three'
+check "runs of blank lines collapse to one" test "$(printf '%s' "$OUT")" = "$(printf 'one\n\ntwo\n\nthree')"
+
+tidy 'trailing
+spaces   '
+check "trailing spaces go" test "$(printf '%s' "$OUT")" = "$(printf 'trailing\nspaces')"
+
+tidy "$(printf 'a\xc2\xa0non\xc2\xa0breaking line')"
+check "a non-breaking space becomes a space" contains "$OUT" "a non breaking line"
+
+tidy '| Reference |  | tierboard.mp4 |  |
+| --- | --- | --- | --- |'
+check "a table keeps its empty cells" contains "$OUT" "| Reference |  | tierboard.mp4 |  |"
+
+tidy 'A paragraph that has nothing wrong with it.
+
+- a list item
+- another one'
+check "text with no pictures is left alone" test "$(printf '%s' "$OUT")" = "$(printf 'A paragraph that has nothing wrong with it.\n\n- a list item\n- another one')"
+
+# A long target broken across lines by whatever produced the file: both halves
+# have to go together, or the tail turns up alone as `.webp)`.
+tidy 'Text before.
+
+![](https://cdn.example.com/very/long/path/that/got
+/wrapped/image.webp)
+
+Text after.'
+check "a wrapped image goes in one piece" not_contains "$OUT" ".webp"
+check "and leaves no tail"                not_contains "$OUT" "wrapped"
+check "and the prose survives it"         contains "$OUT" "Text after."
+
 # --- 3. Keywords ------------------------------------------------------------
 group "keywords"
 fresh b

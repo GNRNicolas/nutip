@@ -141,7 +141,10 @@ final class Extractor: NSObject, WKNavigationDelegate {
             var out = Extracted(title: dict["title"] as? String ?? "",
                                 byline: dict["byline"] as? String ?? "",
                                 excerpt: dict["excerpt"] as? String ?? "",
-                                markdown: (dict["markdown"] as? String ?? "").trimmed)
+                                // Tidied here rather than at each caller: this is the
+                                // one door every extracted page comes through, so
+                                // `nutip extract` prints exactly what a save writes.
+                                markdown: Tidy.markdown(dict["markdown"] as? String ?? ""))
             // Below this, what came back is a cookie banner or a tagline, not a
             // page: the site's own description says more in one line.
             let description = (dict["description"] as? String ?? "").trimmed

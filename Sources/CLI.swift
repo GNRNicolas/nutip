@@ -13,6 +13,7 @@ enum CLI {
                                          save a nut; --extract also reads the page
       nutip rm <path>                    move a nut to the Trash and update the indexes
       nutip extract <url>                print a page as Markdown (what a nut gets)
+      nutip tidy                         read Markdown on stdin, print it without the pictures
       nutip tags                         the configured tags
       nutip tags add <tag>...            add tags to the palette (also: rm)
       nutip folder [path]                the nuts folder; with a path, use that one
@@ -101,6 +102,12 @@ enum CLI {
         case "rm", "remove", "delete":
             guard let path = rest.first else { fail("rm needs the path of a nut") }
             remove(path)
+        case "tidy":
+            // The same pass the extractor runs, on stdin. It is how the rules
+            // below are tested without a network, and it is a way to put an
+            // older nut through them by hand.
+            let input = String(data: FileHandle.standardInput.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            print(Tidy.markdown(input))
         case "extract":
             guard let url = rest.first.flatMap(URL.init(string:)), url.absoluteString.isURL else { fail("extract needs a URL") }
             extract(url)
