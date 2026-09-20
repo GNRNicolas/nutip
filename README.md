@@ -108,7 +108,9 @@ nothing to file.
 
 Click **Browse** or press **⌘F**, and it switches to **browse** mode: type to search everything you saved — title,
 note, tags, keywords and page text. Each result shows the passage that
-matched, with your words in bold, so you pick without opening anything.
+matched, with your words in bold, and the pane beside the list shows what the
+highlighted nut actually says — so ↑↓ is reading, not guessing from a title.
+The list has no end: it loads the next page as you scroll.
 
 - **`#`** filters by tag, **`@`** by anything else: `@today`, `@week`,
   `@month`, `@year`, `@links`, `@text`, or a domain — `@github.com`. The list
@@ -117,7 +119,8 @@ matched, with your words in bold, so you pick without opening anything.
   that it is one nut, not a filter — but typing `@gith…` finds it anyway.
 - **tab** takes the highlighted suggestion, **⌫** on an empty field drops the
   last filter.
-- **↩** opens the file in your editor, **⌘↩** opens the original link,
+- **↑↓** walks the list and the pane follows. The pane only ever reads:
+  **↩** opens the file in your editor, **⌘↩** opens the original link,
   **⌘E** edits tags and note, **⌘D** deletes.
 
 <p align="center">
@@ -212,6 +215,7 @@ nutip search "pricing #competitors" # full-text, #tag filters
 nutip search "@week postgres"       # @ filters: a span of time, links/text, a domain
 nutip filters                       # every @ filter available, read from your nuts
 nutip search claude --json          # for scripts and agents, with an absolute file path
+nutip recent 50 --offset 50         # the next page; --offset works on search too
 nutip add https://example.com -t reading -w "the pricing table"
 nutip add https://example.com -x    # same, and read the page into the nut
 nutip rm 2026-09/2026-09-13-thing.md   # move a nut to the Trash, indexes updated

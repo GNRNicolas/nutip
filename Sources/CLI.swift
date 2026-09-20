@@ -8,6 +8,7 @@ enum CLI {
     Usage:
       nutip recent [N] [--json]          the N most recent nuts (default 20)
       nutip search <query> [--json]      full-text search; #tag restricts to a tag
+      … [--offset N]                     skip the first N, to page through a big folder
       nutip add <url|text> [--tag t]... [--why "..."] [--title "..."] [--extract]
                                          save a nut; --extract also reads the page
       nutip rm <path>                    move a nut to the Trash and update the indexes
@@ -30,6 +31,16 @@ enum CLI {
         var rest = Array(args.dropFirst())
         let json = rest.contains("--json")
         rest.removeAll { $0 == "--json" }
+        // Paging, for the same reason browse has it: a folder holds more nuts
+        // than one answer should carry, and the second page has to be askable.
+        var offset = 0
+        if let i = rest.firstIndex(of: "--offset") {
+            guard i + 1 < rest.count, let n = Int(rest[i + 1]), n >= 0 else {
+                fail("--offset needs a whole number of nuts to skip")
+            }
+            offset = n
+            rest.removeSubrange(i...(i + 1))
+        }
 
         switch command {
         case "--help", "-h", "help":
@@ -59,7 +70,7 @@ enum CLI {
         case "recent":
             Index.open()
             let n = rest.first.flatMap(Int.init) ?? 20
-            emit(Index.search("", limit: n), json: json)
+            emit(Index.search("", limit: n, offset: offset), json: json)
         case "search":
             Index.open()
             let query = rest.joined(separator: " ")
@@ -74,9 +85,12 @@ enum CLI {
                 if let facet = Index.facets(matching: wanted).first { facets.append(facet) }
                 else { fail("no filter called @\(wanted). Try: nutip filters") }
             }
-            let found = Index.search(words.joined(separator: " "), facets: facets, limit: 50)
+            let found = Index.search(words.joined(separator: " "), facets: facets,
+                                     limit: 50, offset: offset)
             emit(found, json: json)
-            if found.isEmpty { suggest() }
+            // Past the first page, empty means the list ran out, not that the
+            // folder has nothing to say. Suggesting otherwise would be wrong.
+            if found.isEmpty, offset == 0 { suggest() }
         case "filters":
             Index.open()
             for facet in Index.facets() { print("@\(facet.value)\(facet.label == facet.value ? "" : "   \(facet.label)")") }

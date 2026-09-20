@@ -31,6 +31,9 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private let empty = NSTextField(labelWithString: "")
     private let gear = NSButton()
     private let buttons = NSStackView()
+    private let preview = PreviewPane()
+    private let listSplit = NSStackView()
+    private let previewLine = NSBox()
     private var monitor: Any?
 
     private var mode: PaletteMode = .browse
@@ -39,6 +42,14 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     /// file are the same tick.
     private var checked = Set<String>()
     private var results: [Nut] = []
+    /// Browse pages its results in, `pageSize` at a time. `exhausted` is set
+    /// by a page that came back short: it is how the list knows to stop asking
+    /// the database the same question with a bigger offset.
+    private var exhausted = false
+    private var loadingPage = false
+    /// The body behind the highlighted row. An index row carries none, so it
+    /// is read from the file and kept while the row stays highlighted.
+    private var previewCache: (path: String, body: String)?
     /// Browse: tags pinned as blue chips before the field, and the tag
     /// suggestions shown while the user types `#…`.
     private var activeTags: [String] = []
@@ -75,6 +86,11 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private var cameFrom: CaptureContext?
 
     private static let width: CGFloat = 720
+    /// Browse is wider: the list keeps a readable width and the pane beside it
+    /// gets a column of prose rather than a column of hyphenated words.
+    private static let browseWidth: CGFloat = 1040
+    private static let listColumnWidth: CGFloat = 400
+    private static let pageSize = 50
     private static let pad: CGFloat = 24
     private static let tagRowHeight: CGFloat = 30
     private static let nutRowHeight: CGFloat = 60
@@ -201,7 +217,45 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         scroll.drawsBackground = false
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
+        // Paging happens on scroll, so the clip view has to say when it moved.
+        scroll.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(listScrolled),
+            name: NSView.boundsDidChangeNotification, object: scroll.contentView)
     }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    /// The list and, beside it in browse, the pane that says what the
+    /// highlighted nut holds. A stack rather than two pinned views, because
+    /// hiding the pane has to give its width back instead of leaving a hole.
+    private func makeListArea() -> NSStackView {
+        previewLine.boxType = .separator
+        listSplit.setViews([scroll, previewLine, preview], in: .leading)
+        listSplit.orientation = .horizontal
+        listSplit.spacing = 0
+        listSplit.distribution = .fill
+        listSplit.alignment = .centerY
+        for view in [scroll, previewLine, preview] {
+            view.heightAnchor.constraint(equalTo: listSplit.heightAnchor).isActive = true
+        }
+        previewLine.widthAnchor.constraint(equalToConstant: 1).isActive = true
+        listWidth = scroll.widthAnchor.constraint(equalToConstant: Palette.listColumnWidth)
+        return listSplit
+    }
+
+    /// Width of the list while the pane is up. Off, and the list takes the lot.
+    private var listWidth: NSLayoutConstraint!
+
+    /// The pane belongs to browse and to nothing else: a capture is three
+    /// lines and a tag list, and widening the panel for it would be noise.
+    private func setPreview(_ on: Bool) {
+        preview.isHidden = !on
+        previewLine.isHidden = !on
+        listWidth.isActive = on
+    }
+
+    private var panelWidth: CGFloat { preview.isHidden ? Palette.width : Palette.browseWidth }
 
     /// Icon, name and folder path, with the settings gear pushed to the right.
     private func makeHeader() -> NSStackView {
@@ -294,7 +348,8 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         let line = separatorLine()
         fieldLine.boxType = .separator
 
-        let stack = NSStackView(views: [header, topLine, nut, fieldLine, fieldBox, line, scroll, footer])
+        let listArea = makeListArea()
+        let stack = NSStackView(views: [header, topLine, nut, fieldLine, fieldBox, line, listArea, footer])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 0
@@ -306,11 +361,19 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
             stack.topAnchor.constraint(equalTo: background.topAnchor),
             stack.bottomAnchor.constraint(equalTo: background.bottomAnchor),
         ])
-        for row in [header, topLine, nut, fieldLine, fieldBox, line, scroll, footer] {
+        for row in [header, topLine, nut, fieldLine, fieldBox, line, listArea, footer] {
             row.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
-        scrollHeight = scroll.heightAnchor.constraint(equalToConstant: 200)
+        scrollHeight = listArea.heightAnchor.constraint(equalToConstant: 200)
         scrollHeight.isActive = true
+        // The panel's width is a constraint rather than a `setContentSize`
+        // argument. The content view's constraints determine its size, which
+        // means autolayout owns the width: a `setContentSize` that disagrees
+        // is overruled on the next pass, and the panel snaps back to the
+        // narrowest its content allows. Browse found that out by coming up at
+        // 445 points instead of 1040.
+        panelWidthConstraint = stack.widthAnchor.constraint(equalToConstant: Palette.width)
+        panelWidthConstraint.isActive = true
         // Sits over the (empty) list; a scroll view keeps its own subviews on top.
         background.addSubview(empty)
         NSLayoutConstraint.activate([
@@ -334,6 +397,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     }
 
     private var scrollHeight: NSLayoutConstraint!
+    private var panelWidthConstraint: NSLayoutConstraint!
 
 
     // MARK: Showing
@@ -366,6 +430,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         subtitleLabel.stringValue = Settings.folder?.path.replacingOccurrences(of: NSHomeDirectory(), with: "~") ?? ""
         nutBlock.isHidden = false
         fieldLine.isHidden = false
+        setPreview(false)
         // Leaving browse: the pinned #tag chips belong to the search field,
         // not to the note, and there is no way to remove them from here.
         activeTags = []
@@ -422,24 +487,27 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         nutBlock.isHidden = true
         fieldLine.isHidden = true
         field.stringValue = ""
+        setPreview(true)
         renderChips()   // sets the placeholder, with or without chips
-        // No hint line here: the placeholder in the field already says
-        // "# tag  @ filter", and saying it twice is just noise.
-        hints.stringValue = ""
+        // The placeholder in the field already says "# tag  @ filter". What it
+        // cannot say is that the list is something you read rather than search.
+        hints.stringValue = "↑↓ reads through them"
         var specs: [(String, String, Selector, Bool)] = []
         if cameFrom != nil { specs.append(("Back", "esc", #selector(cancelPressed), false)) }
         specs += [("Delete", "⌘D", #selector(deletePressed), false), ("Edit", "⌘E", #selector(editPressed), false),
                   ("Open Link", "⌘↩", #selector(openLinkPressed), false), ("Open File", "↩", #selector(confirmPressed), true)]
         setButtons(specs)
-        results = Index.search("")
+        results = Index.search("", limit: Palette.pageSize)
+        exhausted = results.count < Palette.pageSize
     }
 
     /// Size the list, put the panel on screen, and start listening for keys.
     private func present() {
-        if !panel.isVisible { anchorTop = nil }
+        if !panel.isVisible { placed = false }
         table.reloadData()
         table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         table.scrollRowToVisible(0)
+        updatePreview()
         resize()
         place()
 
@@ -495,13 +563,13 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     func hide() {
         removeMonitor()
         cameFrom = nil
-        anchorTop = nil
+        placed = false
         panel.orderOut(nil)
     }
 
-    /// The y of the panel's top edge. Set when the panel appears and kept
-    /// while it is up: a list that grows or shrinks must not move the header.
-    private var anchorTop: CGFloat?
+    /// Whether the panel has been put somewhere on screen. Until it has,
+    /// `resize` leaves the position alone and `place` decides it.
+    private var placed = false
 
     /// How many nut rows fit. Browse is a list: it should use the screen it
     /// is on, not a number picked for a laptop. Everything but the list —
@@ -533,23 +601,31 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         let height = (0..<visible).reduce(CGFloat(0)) { $0 + self.tableView(self.table, heightOfRow: $1) }
         scrollHeight.constant = rows == 0 ? 56 : height + 4
         panel.layoutIfNeeded()
-        panel.setContentSize(NSSize(width: Palette.width, height: panel.contentView!.fittingSize.height))
-        if let top = anchorTop {
-            panel.setFrameOrigin(NSPoint(x: panel.frame.origin.x, y: top - panel.frame.height))
+        // Measured from where the panel is *now*, not from a y remembered at
+        // the first show: the panel is draggable, and browse is wider than a
+        // capture, so both edges move. A list that grows or shrinks must still
+        // leave the header where the eye left it.
+        let before = panel.frame
+        panelWidthConstraint.constant = panelWidth
+        panel.layoutIfNeeded()
+        panel.setContentSize(NSSize(width: panelWidth, height: panel.contentView!.fittingSize.height))
+        if placed {
+            panel.setFrameOrigin(NSPoint(x: before.midX - panel.frame.width / 2,
+                                         y: before.maxY - panel.frame.height))
         }
     }
 
     /// Only ever called for a panel with no anchor yet: `resize` has already
     /// moved an anchored one, immediately before, every time.
     private func place() {
-        guard anchorTop == nil else { return }
+        guard !placed else { return }
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]
         let frame = screen.visibleFrame
         let size = panel.frame.size
         let origin = NSPoint(x: frame.midX - size.width / 2, y: frame.minY + frame.height * 0.62 - size.height / 2)
         panel.setFrameOrigin(origin)
-        anchorTop = origin.y + size.height
+        placed = true
     }
 
     private var isTagMode: Bool {
@@ -827,11 +903,64 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         } else {
             suggestions = []
             facetSuggestions = []
-            results = Index.search(searchText, tags: activeTags, facets: activeFacets)
+            results = Index.search(searchText, tags: activeTags, facets: activeFacets,
+                                   limit: Palette.pageSize)
+            exhausted = results.count < Palette.pageSize
         }
         table.reloadData()
         table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        updatePreview()
         resize()
+    }
+
+    @objc private func listScrolled() { loadNextPage() }
+
+    /// The next page, once the scroller is within a screenful of the end.
+    /// Browse used to stop at fifty without saying so: the list simply ended,
+    /// and a folder of five thousand nuts looked like a folder of fifty.
+    ///
+    /// Nothing is resized here. A list only pages once it scrolls, which means
+    /// it is already as tall as it is allowed to be; calling `resize` would
+    /// move the panel under a hand that is in the middle of scrolling it.
+    private func loadNextPage() {
+        guard case .browse = mode, !suggesting, !exhausted, !loadingPage else { return }
+        let clip = scroll.contentView.bounds
+        guard table.bounds.height - clip.maxY < clip.height else { return }
+        loadingPage = true
+        defer { loadingPage = false }
+        let start = results.count
+        let page = Index.search(searchText, tags: activeTags, facets: activeFacets,
+                                limit: Palette.pageSize, offset: start)
+        guard !page.isEmpty else { exhausted = true; return }
+        exhausted = page.count < Palette.pageSize
+        results += page
+        table.insertRows(at: IndexSet(start..<results.count), withAnimation: [])
+    }
+
+    /// What the pane shows, kept in step with the highlighted row.
+    private func updatePreview() {
+        guard case .browse = mode else { return }
+        if suggesting {
+            preview.clear(currentAtToken != nil ? "Pick a filter." : "Pick a tag.")
+            return
+        }
+        guard let nut = selectedClip else {
+            preview.clear(results.isEmpty ? "Nothing to show." : "Nothing highlighted.")
+            return
+        }
+        preview.show(nut, body: body(of: nut))
+    }
+
+    /// An index row carries no body — that is what makes the index cheap — so
+    /// the file is read here, once, and kept while the row stays highlighted.
+    /// A nut whose file has gone shows its frontmatter and an empty page
+    /// rather than stopping the browse.
+    private func body(of nut: Nut) -> String {
+        if nut.bodyLoaded { return nut.body }
+        if let cached = previewCache, cached.path == nut.path { return cached.body }
+        let loaded = ((try? Store.read(path: nut.path)) ?? nil)?.body ?? ""
+        previewCache = (nut.path, loaded)
+        return loaded
     }
 
     /// Tab / return on a suggestion: the `#partial` becomes a chip.
@@ -942,4 +1071,6 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     }
 
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { PaletteRow() }
+
+    func tableViewSelectionDidChange(_ notification: Notification) { updatePreview() }
 }
