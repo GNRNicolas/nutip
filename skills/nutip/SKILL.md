@@ -22,6 +22,7 @@ nutip search "pricing #competitors" --json   # best match first; each row has an
 nutip search "@week postgres"                # filter by time, kind or domain
 nutip search claude                          # same, plain text
 nutip recent 20                              # what they kept lately
+nutip recent 50 --offset 50                  # the next page; --offset works on search too
 nutip tags                                   # the tags they use
 ```
 

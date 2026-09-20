@@ -154,6 +154,50 @@ case "$jsonfile" in /*) ok "--json file is an absolute path" ;;
                     *) bad "--json file is an absolute path" "$jsonfile" ;; esac
 check "--json file exists on disk"  test -f "$jsonfile"
 
+# --- 2b. Paging -------------------------------------------------------------
+# Browse walks a folder page by page, and so does an agent. What has to hold is
+# that the pages join up: nine nuts read three at a time are the same nine, in
+# the same order, with nothing repeated and nothing missed. The nuts below are
+# written inside the same second, so their captured_at ties — which is the case
+# that used to make an offset skip and repeat rows before the ordering ended on
+# the path.
+group "paging"
+fresh paging
+# One output line per nut carries the tag; the passage and path lines under it
+# do not, which is why the counts below grep for it rather than for the title.
+
+for i in 1 2 3 4 5 6 7 8 9; do "$BIN" add "paged nut number $i" -t reading >/dev/null; done
+
+nut recent 9
+check "nine nuts in one page" test "$(printf '%s' "$OUT" | grep -c '#reading')" -eq 9
+ALL="$OUT"
+
+nut recent 3;             P1="$OUT"
+nut recent 3 --offset 3;  P2="$OUT"
+nut recent 3 --offset 6;  P3="$OUT"
+check "page one holds three"   test "$(printf '%s' "$P1" | grep -c '#reading')" -eq 3
+check "page two holds three"   test "$(printf '%s' "$P2" | grep -c '#reading')" -eq 3
+check "page three holds three" test "$(printf '%s' "$P3" | grep -c '#reading')" -eq 3
+PAGED="$(printf '%s\n%s\n%s' "$P1" "$P2" "$P3")"
+if [ "$PAGED" = "$ALL" ]; then ok "three pages join up into the one list"
+else bad "three pages join up into the one list" "$(printf '%s' "$PAGED" | head -3)"; fi
+
+nut recent 3 --offset 9
+check "past the end exits 0"    test "$ST" -eq 0
+check "past the end is empty"   not_contains "$OUT" "paged nut"
+
+nut search "paged" --offset 3
+check "search pages too"          test "$ST" -eq 0
+check "search skipped the first three" test "$(printf '%s' "$OUT" | grep -c '#reading')" -eq 6
+
+nut search "paged" --offset 99
+check "a search past the end is empty"      not_contains "$OUT" "paged nut"
+check "an exhausted page does not cry wolf" not_contains "$ERR" "Before concluding"
+
+nut recent 3 --offset banana
+check "a non-numeric --offset is refused" test "$ST" -eq 1
+check "and says what it wanted"           contains "$ERR" "--offset"
+
 # --- 3. Keywords ------------------------------------------------------------
 group "keywords"
 fresh b

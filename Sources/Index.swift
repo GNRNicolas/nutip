@@ -217,9 +217,17 @@ enum Index {
 
     /// Newest first. Empty query → the most recent nuts. The rows carry no
     /// body: nothing here opens a file.
-    static func search(_ query: String, tags: [String] = [], facets: [Facet] = [], limit: Int = 50) -> [Nut] {
+    ///
+    /// `offset` is what makes browse a list you can fall down rather than the
+    /// first fifty: the palette asks for the next page once the scroller nears
+    /// the bottom. Every ordering below ends on `path`, which is unique, so two
+    /// pages of one query can never repeat or skip a row the way they would
+    /// under a tie on `captured_at`.
+    static func search(_ query: String, tags: [String] = [], facets: [Facet] = [],
+                       limit: Int = 50, offset: Int = 0) -> [Nut] {
         guard db != nil else {
-            return Array(Store.all().filter { Set(tags).isSubset(of: $0.tags) }.prefix(limit))
+            return Array(Store.all().filter { Set(tags).isSubset(of: $0.tags) }
+                .dropFirst(offset).prefix(limit))
         }
         // Facets are plain SQL on indexed columns, so they work with or
         // without a query: `@week` alone is a legitimate thing to ask for.
@@ -235,8 +243,8 @@ enum Index {
         let q = query.trimmed
         if q.isEmpty, tags.isEmpty {
             let sql = filters.isEmpty ? "" : " WHERE " + filters.joined(separator: " AND ")
-            return nuts("SELECT \(columns) FROM nuts\(sql) ORDER BY captured_at DESC LIMIT ?",
-                         filterArgs + [limit])
+            return nuts("SELECT \(columns) FROM nuts\(sql) ORDER BY captured_at DESC, path DESC LIMIT ? OFFSET ?",
+                         filterArgs + [limit, offset])
         }
         // A tag is a filter: it is required. A word is a clue: requiring every
         // one of them means a question phrased in one more word than the page
@@ -271,16 +279,16 @@ enum Index {
         // was not: searching "privacy" put three pages that mention it once
         // above the one titled "Why is privacy so hard?". Date decides ties, and
         // date alone orders a query that is only tags or filters.
-        let order = words.isEmpty ? "nuts.captured_at DESC"
-                                  : "bm25(fts, 0.0, 12.0, 6.0, 10.0, 8.0, 1.0), nuts.captured_at DESC"
+        let order = words.isEmpty ? "nuts.captured_at DESC, nuts.path DESC"
+                                  : "bm25(fts, 0.0, 12.0, 6.0, 10.0, 8.0, 1.0), nuts.captured_at DESC, nuts.path DESC"
         // The matched passage, cut by FTS5 around the words that matched, so
         // the list can show *why* a nut is in it. Body first — that is where
         // a match is least obvious — falling back to the reason.
         let snippet = "snippet(fts, 5, '\u{2}', '\u{3}', '…', 12)"
         return nuts("""
             SELECT \(columns), \(snippet) FROM nuts JOIN fts ON nuts.path = fts.path
-            WHERE fts MATCH ?\(whereFilters) ORDER BY \(order) LIMIT ?
-            """, [required.joined(separator: " AND ")] + filterArgs + [limit])
+            WHERE fts MATCH ?\(whereFilters) ORDER BY \(order) LIMIT ? OFFSET ?
+            """, [required.joined(separator: " AND ")] + filterArgs + [limit, offset])
     }
 
     /// The most recent nuts, optionally of one tag: what an index page lists.

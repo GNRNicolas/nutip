@@ -17,6 +17,7 @@ that were rejected.
 | `Extractor.swift` | `Extractor` | Hidden `WKWebView` + Readability.js + `tomarkdown.js` |
 | `Palette.swift` | `Palette` | The floating panel and its three modes |
 | `PaletteViews.swift` | `KeyPanel`, `TagCell`, `NutCell` | The panel subclass and the rows |
+| `Preview.swift` | `PreviewPane` | The pane beside the browse list: what the highlighted nut says |
 | `Toast.swift` | `Toast` | Saved confirmation with Undo |
 | `Preferences.swift` | `Preferences` | Onboarding and settings, one window |
 | `Shortcuts.swift` | `Hotkey`, `GlobalHotkey` | The global shortcut (Carbon) |
@@ -215,6 +216,36 @@ so `1` and `⌘1` toggle the first tag on an AZERTY keyboard without Shift.
 Every key also has a button in the footer, with its shortcut printed after
 the label. Browse remembers the capture it was opened from, and esc returns
 to it.
+
+### Browse is read, not just searched
+
+Browse listed fifty rows of two lines each and stopped, with no way to see
+what a nut held short of opening the file in another app — which ends the
+browse. Two changes make the list somewhere you can wander:
+
+- **A pane beside the list.** ↑↓ moves, the pane follows: title, the reason
+  you wrote, and the body. It is read-only and unselectable, because the panel
+  is non-activating and a click that took first responder would pull the caret
+  out of the search field. Markdown is rendered *lightly* — headings stand
+  out, bullets are bullets, `**`, backticks and link targets go — which is not
+  a renderer and must not become one: the pane is a glance at a file, and a
+  real renderer would be a dependency and a second way for the text to be
+  wrong. Editing is still ⌘E.
+- **Pages, not a cap.** `Index.search` takes an `offset` and the palette asks
+  for the next fifty when the scroller nears the end. Every ordering ends on
+  `path`, which is unique: without it, two nuts saved in the same second can
+  tie on `captured_at` and a page boundary repeats one and skips the other.
+  `nutip recent|search --offset N` is the same paging from the command line,
+  and it is what the black-box tests can reach.
+
+Browse is wider than a capture (1040 against 720) so the list keeps a readable
+width and the pane gets a column of prose rather than hyphenated words.
+
+**The panel's width is a constraint, not a `setContentSize` argument.** Its
+content view's constraints determine its size, so autolayout owns the width; a
+`setContentSize` that disagrees is overruled on the next pass and the panel
+snaps to the narrowest its content allows. Browse found that out by coming up
+at 445 points instead of 1040, having been asked for 1040 and told it got it.
 
 ## Global shortcut
 
