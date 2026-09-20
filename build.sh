@@ -5,8 +5,8 @@ cd "$(dirname "$0")"
 
 NAME="Nutip"
 ID="fr.nicolasgarnier.nutip"
-VERSION="1.7"
-BUILD="3"
+VERSION="1.8"
+BUILD="4"
 APP="build/$NAME.app"
 
 # Swift's shared module cache is what makes a rebuild take seconds. Leave it
