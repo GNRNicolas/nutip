@@ -163,31 +163,72 @@ final class PreviewPane: NSView {
         ]
         let out = NSMutableAttributedString()
         var blanks = 0
-        for raw in capped.components(separatedBy: "\n") {
+        for raw in unwrap(capped).components(separatedBy: "\n") {
             let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty {
-                // One blank line between blocks, never the four a scraped page
-                // sometimes carries.
+            var isHeading = false
+            var content = ""
+            var bullet = false
+            // A rule draws nothing here, and a line whose whole content was a
+            // badge — an image inside a link — strips down to nothing at all.
+            // Both count as blank rather than as an empty line of their own:
+            // a row of six shields used to open six gaps in the middle of a
+            // page.
+            if !line.isEmpty, !(line.count >= 3 && line.allSatisfy { $0 == "-" || $0 == "*" || $0 == "_" }) {
+                content = line
+                if let hashes = content.range(of: "^#{1,6}\\s+", options: .regularExpression) {
+                    isHeading = true
+                    content = String(content[hashes.upperBound...])
+                } else if let quote = content.range(of: "^>\\s*", options: .regularExpression) {
+                    content = String(content[quote.upperBound...])
+                } else if let mark = content.range(of: "^[-*+]\\s+", options: .regularExpression) {
+                    bullet = true
+                    content = String(content[mark.upperBound...])
+                }
+                content = strip(content)
+            }
+            // What is left of a link whose target was long enough to be
+            // wrapped somewhere upstream: one token, no spaces, closing the
+            // parenthesis its opening half never got. Prose does not look
+            // like that, and `.webp)` on a line of its own is not worth a line.
+            if !content.contains(" "), content.hasSuffix(")") { content = "" }
+            if content.isEmpty {
                 blanks += 1
                 if blanks == 1, out.length > 0 { out.append(NSAttributedString(string: "\n", attributes: body)) }
                 continue
             }
             blanks = 0
-            // A rule draws nothing here; it would just be a line of dashes.
-            if line.count >= 3, line.allSatisfy({ $0 == "-" || $0 == "*" || $0 == "_" }) { continue }
-            var isHeading = false
-            var content = line
-            if let hashes = content.range(of: "^#{1,6}\\s+", options: .regularExpression) {
-                isHeading = true
-                content = String(content[hashes.upperBound...])
-            } else if let quote = content.range(of: "^>\\s*", options: .regularExpression) {
-                content = String(content[quote.upperBound...])
-            } else if let bullet = content.range(of: "^[-*+]\\s+", options: .regularExpression) {
-                content = "•  " + content[bullet.upperBound...]
-            }
-            out.append(NSAttributedString(string: strip(content) + "\n", attributes: isHeading ? heading : body))
+            out.append(NSAttributedString(string: (bullet ? "•  " : "") + content + "\n",
+                                          attributes: isHeading ? heading : body))
         }
         return out
+    }
+
+    /// Markdown wrapped across lines, put back on one. A link or an image
+    /// whose target is long is regularly broken mid-URL by whatever produced
+    /// the file, and `strip` reads one line at a time: the opening half stays
+    /// as it is and the tail turns up on its own line as `.webp)`. Joined
+    /// first, both halves disappear together.
+    private static func unwrap(_ text: String) -> String {
+        var out: [String] = []
+        var held = ""
+        var joins = 0
+        for raw in text.components(separatedBy: "\n") {
+            let line = held.isEmpty ? raw : held + raw.trimmingCharacters(in: .whitespaces)
+            let opens = line.filter { $0 == "(" }.count
+            let closes = line.filter { $0 == ")" }.count
+            // Five is well past any real URL split, and it stops a file with
+            // one stray bracket from swallowing the rest of itself.
+            if line.contains("]("), opens > closes, joins < 5 {
+                held = line
+                joins += 1
+                continue
+            }
+            out.append(line)
+            held = ""
+            joins = 0
+        }
+        if !held.isEmpty { out.append(held) }
+        return out.joined(separator: "\n")
     }
 
     /// Inline markers that say nothing once the text is styled, and links
@@ -198,8 +239,13 @@ final class PreviewPane: NSView {
         for (pattern, replacement) in [
             ("!\\[[^\\]]*\\]\\([^)]*\\)", ""),      // image
             ("\\[([^\\]]*)\\]\\([^)]*\\)", "$1"),   // link → its text
+            ("<(https?://[^>]+)>", "$1"),           // autolink → the bare url
             ("\\*\\*([^*]+)\\*\\*", "$1"),
             ("__([^_]+)__", "$1"),
+            // Italics, once the bold pairs are gone. Anchored on a non-space
+            // so `2 * 3 * 4` keeps its arithmetic. `_like_this_` is left
+            // alone: too many identifiers look like it.
+            ("\\*(\\S[^*]*?)\\*", "$1"),
             ("`([^`]+)`", "$1"),
         ] {
             s = s.replacingOccurrences(of: pattern, with: replacement, options: .regularExpression)
