@@ -34,6 +34,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
     private let preview = PreviewPane()
     private let listSplit = NSStackView()
     private let previewLine = NSBox()
+    private let backdrop = Backdrop()
     private var monitor: Any?
 
     private var mode: PaletteMode = .browse
@@ -531,6 +532,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         resize()
         place()
 
+        backdrop.show()
         panel.makeKeyAndOrderFront(nil)
         switch mode {
         case .browse, .edit: focusField()
@@ -585,6 +587,7 @@ final class Palette: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSTex
         cameFrom = nil
         placed = false
         panel.orderOut(nil)
+        backdrop.hide()
     }
 
     /// Whether the panel has been put somewhere on screen. Until it has,
