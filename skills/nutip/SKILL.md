@@ -1,6 +1,6 @@
 ---
 name: nutip
-description: Read, search and write the user's Nutip nuts, a folder of Markdown files they saved on purpose (articles, links, notes) with a one-line reason each. Use when the user refers to what they saved, clipped, bookmarked or "put in Nutip", when they ask you to save or nut something, or when you need their own references rather than the open web.
+description: "Read, search and write the user's Nutip nuts: Markdown files they saved on purpose (articles, links, notes), each with a one-line reason. Use when they mention what they saved, clipped, bookmarked or put in Nutip, ask to save or nut something, or when their own references beat the open web."
 ---
 
 # Nutip
